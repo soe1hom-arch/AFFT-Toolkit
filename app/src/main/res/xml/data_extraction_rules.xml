@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Kebijakan backup AFFT Toolkit (Android 12+):
+  - Data kerja (afft_work: temp/, input/, logs/, Payload/, img/, repacked/, boot_out/...)
+    TIDAK ikut di-backup — image firmware bisa sangat besar & sensitif.
+  - Workspace proyek (workspace/) TIDAK ikut di-backup.
+  - Binary yang di-deploy (filesDir/afft_bin) TIDAK di-backup (di-extract ulang dari assets).
+  - File lain (preferensi kecil) tetap boleh di-backup bila ada.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="afft_bin" />
+        <exclude domain="file" path="workspace" />
+        <exclude domain="external" path="afft_work" />
+        <exclude domain="external" path="workspace" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="afft_bin" />
+        <exclude domain="file" path="workspace" />
+        <exclude domain="external" path="afft_work" />
+        <exclude domain="external" path="workspace" />
+    </device-transfer>
+</data-extraction-rules>

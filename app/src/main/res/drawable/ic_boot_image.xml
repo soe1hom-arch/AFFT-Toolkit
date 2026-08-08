@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Converted from Material Symbols (Apache-2.0) by marella/material-symbols -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M 393.00 795.00 L 672.00 460.00 H 492.00 L 528.00 174.00 275.00 540.00 H 429.00 L 393.00 795.00 Z M 320.00 880.00 L 360.00 600.00 H 160.00 L 520.00 80.00 H 600.00 L 560.00 400.00 H 800.00 L 400.00 880.00 H 320.00 Z M 474.00 484.00 Z"/>
+</vector>

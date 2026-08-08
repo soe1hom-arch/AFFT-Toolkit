@@ -1,0 +1,91 @@
+name: 📦 Release AFFT APK · soe1hom-arch
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.14.2'
+
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release-key.jks
+
+      - name: Build Release APK
+        run: |
+          ./gradlew assembleRelease
+        shell: bash
+        env:
+          KEYSTORE_PATH: "release-key.jks"
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Clean Keystore
+        if: always()
+        run: |
+          if [ -f app/release-key.jks ]; then
+            rm -f app/release-key.jks
+          fi
+
+      - name: Rename APK with version
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk \
+             app/build/outputs/apk/release/AFFT-Toolkit_${{ github.ref_name }}.apk
+
+      - name: Generate release notes from CHANGELOG
+        run: |
+          TAG="${{ github.ref_name }}"
+          # Extract changelog entry for this version from CHANGELOG.md
+          # Extract changelog entry: tag is v2.1.1, changelog has [2.1.1]
+          CHANGELOG_VERSION=$(echo "$TAG" | sed 's/^v//')
+          awk -v tag="[$CHANGELOG_VERSION]" '
+            /^## / { if (found) exit; if (index($0, tag)) found=1; }
+            found { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          
+          # Fallback: if extraction empty, use auto-generated notes
+          if [ ! -s /tmp/release-notes.md ]; then
+            echo "## AFFT-Toolkit ${TAG}" > /tmp/release-notes.md
+            echo "" >> /tmp/release-notes.md
+            echo "See [CHANGELOG](https://github.com/soe1hom-arch/AFFT-Toolkit/blob/main/CHANGELOG.md) for details." >> /tmp/release-notes.md
+          fi
+          
+          # Add links footer
+          echo "" >> /tmp/release-notes.md
+          echo "---" >> /tmp/release-notes.md
+          echo "[📖 README](https://github.com/soe1hom-arch/AFFT-Toolkit#readme) · [📋 Full Changelog](https://github.com/soe1hom-arch/AFFT-Toolkit/blob/main/CHANGELOG.md)" >> /tmp/release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          IS_PRERELEASE="false"
+          if echo "${{ github.ref_name }}" | grep -qiE "beta|alpha|rc|pre"; then
+            IS_PRERELEASE="true"
+          fi
+          gh release create "${{ github.ref_name }}" \
+             --title "${{ github.ref_name }}" \
+             --notes-file /tmp/release-notes.md \
+             --prerelease="$IS_PRERELEASE" \
+             "app/build/outputs/apk/release/AFFT-Toolkit_${{ github.ref_name }}.apk"
