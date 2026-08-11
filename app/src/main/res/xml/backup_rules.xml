@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Kebijakan backup AFFT Toolkit (Android < 12, fullBackupContent):
+  Sama dengan data_extraction_rules — exclude data kerja, workspace,
+  dan binary hasil deploy agar tidak ikut ter-backup.
+-->
+<full-backup-content>
+    <exclude domain="file" path="afft_bin" />
+    <exclude domain="file" path="workspace" />
+    <exclude domain="external" path="afft_work" />
+    <exclude domain="external" path="workspace" />
+</full-backup-content>

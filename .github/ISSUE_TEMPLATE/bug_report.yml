@@ -1,0 +1,62 @@
+name: "🐛 Laporan Bug"
+description: "Laporkan bug atau masalah pada AFFT Toolkit"
+labels: ["bug"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Terima kasih telah melaporkan bug! Mohon isi detail di bawah ini agar kami bisa memperbaikinya secepat mungkin.
+
+  - type: input
+    id: version
+    attributes:
+      label: "Versi AFFT"
+      description: "Versi aplikasi yang kamu gunakan (contoh: v2.0.9-beta-6)"
+      placeholder: "v2.0.9-beta-6"
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: "Perangkat & Android"
+      description: "Merk, model, dan versi Android"
+      placeholder: "Xiaomi Redmi Note 12, Android 14"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: "Deskripsi Bug"
+      description: "Jelaskan apa yang terjadi"
+      placeholder: "Setelah mengklik tombol Extract, aplikasi force close..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Langkah Reproduksi"
+      description: "Langkah-langkah untuk memunculkan bug"
+      placeholder: |
+        1. Buka aplikasi
+        2. Pilih file payload.bin
+        3. Klik Extract
+        4. Aplikasi force close
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "Yang Diharapkan"
+      description: "Apa yang seharusnya terjadi?"
+      placeholder: "Ekstraksi berjalan sampai selesai tanpa error"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: "Log / Screenshot"
+      description: "Lampirkan log error atau screenshot (bisa dari sidebar Console Log)"

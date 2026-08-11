@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Converted from Material Symbols (Apache-2.0) by marella/material-symbols -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M 383.00 432.00 H 443.00 V 275.00 H 383.00 V 432.00 Z M 502.00 432.00 H 562.00 V 275.00 H 502.00 V 432.00 Z M 621.00 432.00 H 681.00 V 275.00 H 621.00 V 432.00 Z M 220.00 880.00 Q 196.00 880.00 178.00 862.00 T 160.00 820.00 V 319.00 L 399.00 80.00 H 740.00 Q 764.00 80.00 782.00 98.00 T 800.00 140.00 V 820.00 Q 800.00 844.00 782.00 862.00 T 740.00 880.00 H 220.00 Z M 220.00 820.00 H 740.00 V 140.00 H 426.00 L 220.00 346.12 V 820.00 Z M 220.00 820.00 H 740.00 220.00 Z"/>
+</vector>

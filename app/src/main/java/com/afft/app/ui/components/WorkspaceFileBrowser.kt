@@ -1,0 +1,921 @@
+/*
+ * Copyright (c) 2026 Wandi (soe1hom-arch)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.afft.app.ui.components
+import com.afft.app.ui.theme.LocalFontFamily
+import com.afft.app.ui.theme.LocalIconTint
+
+import android.os.Environment
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.afft.app.R
+import com.afft.app.util.formatFileSize
+import java.io.File
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun WorkspaceFileBrowserDialog(
+    title: String,
+    currentDir: File,
+    onNavigate: (File) -> Unit,
+    onFileSelected: (File) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = LocalFontFamily.current,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    currentDir.absolutePath,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = LocalFontFamily.current,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        },
+        text = {
+            val files =
+                remember(currentDir) {
+                    currentDir
+                        .listFiles()
+                        ?.filter { it.isFile }
+                        ?.sortedWith(compareBy<File> { it.extension }.thenBy { it.name.lowercase() })
+                        ?: emptyList()
+                }
+            val dirs =
+                remember(currentDir) {
+                    currentDir
+                        .listFiles()
+                        ?.filter { it.isDirectory }
+                        ?.sortedBy { it.name.lowercase() }
+                        ?: emptyList()
+                }
+
+            if (dirs.isEmpty() && files.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "Folder kosong",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                ) {
+                    // Parent directory navigation
+                    if (currentDir.parentFile != null && currentDir.parentFile?.canRead() == true) {
+                        item {
+                            ListItem(
+                                headlineContent = {
+                                    Text(
+                                        "../",
+                                        fontFamily = LocalFontFamily.current,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                },
+                                leadingContent = {
+                                    Icon(
+                                        painterResource(R.drawable.ic_folder),
+                                        null,
+                                        tint = LocalIconTint.current,
+                                    )
+                                },
+                                modifier =
+                                    Modifier.clickable {
+                                        currentDir.parentFile?.let { onNavigate(it) }
+                                    },
+                            )
+                            HorizontalDivider()
+                        }
+                    }
+
+                    // Directories
+                    items(dirs) { dir ->
+                        ListItem(
+                            headlineContent = {
+                                Text(
+                                    "${dir.name}/",
+                                    fontFamily = LocalFontFamily.current,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            },
+                            leadingContent = {
+                                Icon(
+                                    painterResource(R.drawable.ic_folder),
+                                    null,
+                                    tint = LocalIconTint.current,
+                                )
+                            },
+                            modifier = Modifier.clickable { onNavigate(dir) },
+                        )
+                        HorizontalDivider()
+                    }
+
+                    // Files
+                    items(files) { file ->
+                        ListItem(
+                            headlineContent = {
+                                Text(
+                                    file.name,
+                                    fontFamily = LocalFontFamily.current,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            supportingContent = {
+                                Text(
+                                    formatFileSize(file.length()) + " · " + file.extension.uppercase(),
+                                    fontFamily = LocalFontFamily.current,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            leadingContent = {
+                                Icon(
+                                    when (file.extension.lowercase()) {
+                                        "img", "bin" -> painterResource(R.drawable.ic_disc_full)
+                                        "zip", "gz", "xz" -> painterResource(R.drawable.ic_archive)
+                                        "txt", "log" -> painterResource(R.drawable.ic_text_snippet)
+                                        else -> painterResource(R.drawable.ic_insert_drive_file)
+                                    },
+                                    null,
+                                    tint = LocalIconTint.current,
+                                )
+                            },
+                            modifier = Modifier.clickable { onFileSelected(file) },
+                        )
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Tutup")
+            }
+        },
+    )
+}
+
+/**
+ * Dialog awal untuk memilih sumber file:
+ * 1. "Pilih dari Penyimpanan" → System file picker
+ * 2. "Pilih dari Folder Kerja" → Workspace browser
+ */
+@Composable
+fun FileSourceSelectorDialog(
+    onPickFromStorage: () -> Unit,
+    onPickFromWorkspace: () -> Unit,
+    onPickFromFileManager: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Pilih Sumber File",
+                fontFamily = LocalFontFamily.current,
+                fontWeight = FontWeight.Bold,
+            )
+        },
+        text = {
+            Column {
+                Button(
+                    onClick = {
+                        onDismiss()
+                        onPickFromStorage()
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                        ),
+                ) {
+                    Icon(painterResource(R.drawable.ic_storage), null, tint = LocalIconTint.current)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Pilih dari Penyimpanan")
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        onDismiss()
+                        onPickFromFileManager()
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                ) {
+                    Icon(painterResource(R.drawable.ic_folder_open), null, tint = LocalIconTint.current)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Pilih dari File Manager")
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = {
+                        onDismiss()
+                        onPickFromWorkspace()
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                ) {
+                    Icon(painterResource(R.drawable.ic_folder_open), null, tint = LocalIconTint.current)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Pilih dari Folder Kerja")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Batal") }
+        },
+    )
+}
+
+/**
+ * Dialog browser file yang bisa navigasi ke seluruh penyimpanan perangkat,
+ * mirip dengan File Manager. Mulai dari /storage/emulated/0/.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DeviceFileBrowserDialog(
+    initialDir: File = File("/storage/emulated/0"),
+    title: String = "Pilih File dari Penyimpanan",
+    onFileSelected: (File) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var currentDir by remember { mutableStateOf(initialDir) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = LocalFontFamily.current,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    currentDir.absolutePath,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = LocalFontFamily.current,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        },
+        text = {
+            val dirs =
+                remember(currentDir) {
+                    currentDir
+                        .listFiles()
+                        ?.filter { it.isDirectory }
+                        ?.sortedBy { it.name.lowercase() }
+                        ?: emptyList()
+                }
+            val files =
+                remember(currentDir) {
+                    currentDir
+                        .listFiles()
+                        ?.filter { it.isFile }
+                        ?.sortedWith(compareBy<File> { it.extension }.thenBy { it.name.lowercase() })
+                        ?: emptyList()
+                }
+
+            if (dirs.isEmpty() && files.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "Folder kosong",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                ) {
+                    // Parent directory navigation
+                    if (currentDir.parentFile != null && currentDir.parentFile?.canRead() == true) {
+                        item {
+                            ListItem(
+                                headlineContent = {
+                                    Text(
+                                        "../",
+                                        fontFamily = LocalFontFamily.current,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                },
+                                leadingContent = {
+                                    Icon(
+                                        painterResource(R.drawable.ic_folder),
+                                        null,
+                                        tint = LocalIconTint.current,
+                                    )
+                                },
+                                modifier =
+                                    Modifier.clickable {
+                                        currentDir.parentFile?.let { currentDir = it }
+                                    },
+                            )
+                            HorizontalDivider()
+                        }
+                    }
+
+                    // Quick root navigation
+                    item {
+                        ListItem(
+                            headlineContent = {
+                                Text(
+                                    "/storage/emulated/0/",
+                                    fontFamily = LocalFontFamily.current,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            },
+                            leadingContent = {
+                                Icon(
+                                    painterResource(R.drawable.ic_phone_android),
+                                    null,
+                                    tint = LocalIconTint.current,
+                                )
+                            },
+                            modifier =
+                                Modifier.clickable {
+                                    currentDir = File("/storage/emulated/0")
+                                },
+                        )
+                        HorizontalDivider()
+                    }
+
+                    // Directories
+                    items(dirs) { dir ->
+                        if (dir.canRead()) {
+                            ListItem(
+                                headlineContent = {
+                                    Text(
+                                        "${dir.name}/",
+                                        fontFamily = LocalFontFamily.current,
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                },
+                                leadingContent = {
+                                    Icon(
+                                        painterResource(R.drawable.ic_folder),
+                                        null,
+                                        tint = LocalIconTint.current,
+                                    )
+                                },
+                                modifier = Modifier.clickable { currentDir = dir },
+                            )
+                            HorizontalDivider()
+                        }
+                    }
+
+                    // Files
+                    items(files) { file ->
+                        ListItem(
+                            headlineContent = {
+                                Text(
+                                    file.name,
+                                    fontFamily = LocalFontFamily.current,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            },
+                            supportingContent = {
+                                Text(
+                                    formatFileSize(file.length()) + " · " + file.extension.uppercase(),
+                                    fontFamily = LocalFontFamily.current,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            leadingContent = {
+                                Icon(
+                                    when (file.extension.lowercase()) {
+                                        "img", "bin" -> painterResource(R.drawable.ic_disc_full)
+                                        "zip", "gz", "xz" -> painterResource(R.drawable.ic_archive)
+                                        "txt", "log" -> painterResource(R.drawable.ic_text_snippet)
+                                        else -> painterResource(R.drawable.ic_insert_drive_file)
+                                    },
+                                    null,
+                                    tint = LocalIconTint.current,
+                                )
+                            },
+                            modifier =
+                                Modifier.clickable {
+                                    onFileSelected(file)
+                                    onDismiss()
+                                },
+                        )
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Tutup")
+            }
+        },
+    )
+}
+
+/**
+ * Full-screen dialog file picker with complete file manager capabilities.
+ * Mirip dengan FileManagerScreen tapi dalam mode picker (memilih file).
+ * Bisa search, sort, navigasi ke seluruh penyimpanan.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun FileManagerPickerDialog(
+    initialDir: File = File("/storage/emulated/0"),
+    title: String = "Pilih File dari File Manager",
+    onFileSelected: (File) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var currentDir by remember { mutableStateOf(initialDir) }
+    var files by remember { mutableStateOf<List<File>>(emptyList()) }
+    var pathHistory by remember { mutableStateOf<List<File>>(emptyList()) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var showSearch by rememberSaveable { mutableStateOf(false) }
+    var sortMode by rememberSaveable { mutableStateOf("name") }
+    var sortAsc by rememberSaveable { mutableStateOf(true) }
+
+    // Resolve directories
+    val storageRoot = File("/storage/emulated/0")
+    val downloadDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "AFFT")
+
+    fun refreshFiles(dir: File) {
+        val rawList = dir.listFiles()?.toList() ?: emptyList()
+        val filtered =
+            if (searchQuery.isBlank()) {
+                rawList
+            } else {
+                rawList.filter { it.name.lowercase().contains(searchQuery.lowercase()) }
+            }
+
+        val sorted =
+            filtered.sortedWith(
+                when (sortMode) {
+                    "date" ->
+                        compareByDescending<File> { !it.isDirectory }
+                            .thenByDescending { it.lastModified() }
+                    "size" ->
+                        compareBy<File> { !it.isDirectory }
+                            .thenBy { if (it.isDirectory) 0L else it.length() }
+                    "type" ->
+                        compareBy<File> { !it.isDirectory }
+                            .thenBy { it.extension.lowercase() }
+                    else ->
+                        compareBy<File> { !it.isDirectory }
+                            .thenBy { it.name.lowercase() }
+                },
+            )
+        files = if (sortAsc) sorted else sorted.reversed()
+        currentDir = dir
+    }
+
+    LaunchedEffect(Unit) {
+        refreshFiles(initialDir)
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
+        ) {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+            ) {
+                // ── Header ──
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontFamily = LocalFontFamily.current,
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            painterResource(R.drawable.ic_close),
+                            contentDescription = "Tutup",
+                            tint = LocalIconTint.current,
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // ── Path bar ──
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (pathHistory.isNotEmpty()) {
+                        IconButton(onClick = {
+                            val prev = pathHistory.last()
+                            pathHistory = pathHistory.dropLast(1)
+                            refreshFiles(prev)
+                        }, modifier = Modifier.size(36.dp)) {
+                            Icon(painterResource(R.drawable.ic_arrow_back), "Back", tint = LocalIconTint.current)
+                        }
+                    }
+                    IconButton(
+                        onClick = {
+                            currentDir.parentFile?.let { parent ->
+                                pathHistory = pathHistory + currentDir
+                                refreshFiles(parent)
+                            }
+                        },
+                        enabled = currentDir.parentFile != null && currentDir.parentFile?.canRead() == true,
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(painterResource(R.drawable.ic_subdirectory_arrow_left), "↑", tint = LocalIconTint.current)
+                    }
+                    Text(
+                        text = currentDir.absolutePath,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = LocalFontFamily.current,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(
+                        onClick = { refreshFiles(currentDir) },
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(painterResource(R.drawable.ic_refresh), "Refresh", tint = LocalIconTint.current)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // ── Quick location row ──
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AssistChip(
+                        onClick = {
+                            pathHistory = emptyList()
+                            refreshFiles(storageRoot)
+                        },
+                        label = { Text("Device", fontSize = 11.sp) },
+                        leadingIcon = {
+                            Icon(
+                                painterResource(R.drawable.ic_phone_android),
+                                null,
+                                tint = LocalIconTint.current,
+                            )
+                        },
+                    )
+                    AssistChip(
+                        onClick = {
+                            pathHistory = emptyList()
+                            refreshFiles(File("/storage/emulated/0"))
+                        },
+                        label = { Text("Internal", fontSize = 11.sp) },
+                        leadingIcon = { Icon(painterResource(R.drawable.ic_folder), null, tint = LocalIconTint.current) },
+                    )
+                    if (downloadDir.exists()) {
+                        AssistChip(
+                            onClick = {
+                                pathHistory = emptyList()
+                                refreshFiles(downloadDir)
+                            },
+                            label = { Text("DL/AFFT", fontSize = 11.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    painterResource(R.drawable.ic_download),
+                                    null,
+                                    tint = LocalIconTint.current,
+                                )
+                            },
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // ── Sort + Search row ──
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FilterChip(
+                        selected = sortMode == "name",
+                        onClick = {
+                            if (sortMode == "name") {
+                                sortAsc = !sortAsc
+                            } else {
+                                sortMode = "name"
+                                sortAsc = true
+                            }
+                            refreshFiles(currentDir)
+                        },
+                        label = { Text("Nama", fontSize = 10.sp) },
+                        leadingIcon = {
+                            Icon(
+                                if (sortAsc) {
+                                    painterResource(
+                                        R.drawable.ic_arrow_up,
+                                    )
+                                } else {
+                                    painterResource(R.drawable.ic_arrow_down)
+                                },
+                                null,
+                            )
+                        },
+                        modifier = Modifier.height(32.dp),
+                    )
+                    FilterChip(
+                        selected = sortMode == "date",
+                        onClick = {
+                            if (sortMode == "date") {
+                                sortAsc = !sortAsc
+                            } else {
+                                sortMode = "date"
+                                sortAsc = false
+                            }
+                            refreshFiles(currentDir)
+                        },
+                        label = { Text("Tgl", fontSize = 10.sp) },
+                        leadingIcon = {
+                            Icon(
+                                if (sortAsc) {
+                                    painterResource(
+                                        R.drawable.ic_arrow_up,
+                                    )
+                                } else {
+                                    painterResource(R.drawable.ic_arrow_down)
+                                },
+                                null,
+                            )
+                        },
+                        modifier = Modifier.height(32.dp),
+                    )
+                    FilterChip(
+                        selected = sortMode == "size",
+                        onClick = {
+                            if (sortMode == "size") {
+                                sortAsc = !sortAsc
+                            } else {
+                                sortMode = "size"
+                                sortAsc = false
+                            }
+                            refreshFiles(currentDir)
+                        },
+                        label = { Text("Ukuran", fontSize = 10.sp) },
+                        leadingIcon = {
+                            Icon(
+                                if (sortAsc) {
+                                    painterResource(
+                                        R.drawable.ic_arrow_up,
+                                    )
+                                } else {
+                                    painterResource(R.drawable.ic_arrow_down)
+                                },
+                                null,
+                            )
+                        },
+                        modifier = Modifier.height(32.dp),
+                    )
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    IconButton(
+                        onClick = { showSearch = !showSearch },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(painterResource(R.drawable.ic_search), "Search", tint = LocalIconTint.current)
+                    }
+                }
+
+                // ── Search bar ──
+                if (showSearch) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { q ->
+                            searchQuery = q
+                            refreshFiles(currentDir)
+                        },
+                        placeholder = { Text("Cari file...", fontSize = 13.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = { Icon(painterResource(R.drawable.ic_search), null, tint = LocalIconTint.current) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    searchQuery = ""
+                                    refreshFiles(currentDir)
+                                }, modifier = Modifier.size(24.dp)) {
+                                    Icon(painterResource(R.drawable.ic_clear), null, tint = LocalIconTint.current)
+                                }
+                            }
+                        },
+                        textStyle = MaterialTheme.typography.bodySmall,
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // ── File list ──
+                Card(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                    colors =
+                        CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        ),
+                ) {
+                    if (currentDir.listFiles().isNullOrEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    painterResource(R.drawable.ic_folder_off),
+                                    null,
+                                    tint = LocalIconTint.current,
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "Folder kosong",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            items(files) { file ->
+                                FileManagerPickerItem(
+                                    file = file,
+                                    onClick = {
+                                        if (file.isDirectory) {
+                                            pathHistory = pathHistory + currentDir
+                                            refreshFiles(file)
+                                        } else {
+                                            onFileSelected(file)
+                                            onDismiss()
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // ── Bottom info ──
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "${files.size} item | ${currentDir.absolutePath}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = LocalFontFamily.current,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = onDismiss) {
+                        Text("Batal")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FileManagerPickerItem(
+    file: File,
+    onClick: () -> Unit,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .padding(vertical = 1.dp)
+                .combinedClickable(
+                    onClick = onClick,
+                ),
+        colors =
+            CardDefaults.cardColors(
+                containerColor =
+                    if (file.isDirectory) {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+            ),
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                when {
+                    file.isDirectory -> painterResource(R.drawable.ic_folder)
+                    file.name.endsWith(".img") -> painterResource(R.drawable.ic_sd_storage)
+                    file.name.endsWith(".bin") -> painterResource(R.drawable.ic_archive)
+                    else -> painterResource(R.drawable.ic_description)
+                },
+                contentDescription = null,
+                tint = LocalIconTint.current,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = file.name,
+                    fontFamily = LocalFontFamily.current,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (file.isFile) {
+                    Text(
+                        text = formatFileSize(file.length()),
+                        fontFamily = LocalFontFamily.current,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Text(
+                        text = "Folder",
+                        fontFamily = LocalFontFamily.current,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Icon(
+                painterResource(R.drawable.ic_chevron_right),
+                contentDescription = null,
+                tint = LocalIconTint.current,
+            )
+        }
+    }
+}

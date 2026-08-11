@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AFFT Toolkit — Android Firmware Full Toolkit</title>
+<meta name="description" content="Analyze, unpack & repack Android firmware directly on your device. Payload, Super, Boot, Filesystem — no PC required.">
+<meta property="og:title" content="AFFT Toolkit">
+<meta property="og:description" content="Android Firmware Full Toolkit — analyze, unpack & repack ROM firmware on your Android device.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070C12;
+    --surface: #0F1A22;
+    --surface2: #182834;
+    --border: rgba(255,255,255,.08);
+    --text: #E6EDF3;
+    --muted: #9FB2BE;
+    --green: #22E69F;
+    --green-dim: rgba(34,230,159,.14);
+    --cyan: #00E4EB;
+    --amber: #FFBA25;
+    --red: #FF5B52;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--green-dim); color: var(--green); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* ── Nav ── */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(7,12,18,.82);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  nav .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; color: var(--text); text-decoration: none; }
+  .brand img { width: 28px; height: 28px; border-radius: 8px; }
+  .nav-links { display: flex; gap: 20px; margin-left: auto; align-items: center; }
+  .nav-links a { color: var(--muted); text-decoration: none; font-size: 13.5px; font-weight: 500; }
+  .nav-links a:hover { color: var(--green); }
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 14px; border-radius: 10px;
+    border: 1px solid var(--border); color: var(--text);
+    text-decoration: none; font-size: 13.5px; font-weight: 600;
+  }
+  .btn-ghost:hover { border-color: var(--green); color: var(--green); }
+
+  /* ── Hero ── */
+  header.hero {
+    position: relative; overflow: hidden;
+    padding: 84px 0 64px;
+    text-align: center;
+  }
+  header.hero::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(ellipse 70% 45% at 50% -5%, rgba(34,230,159,.13), transparent 70%);
+    pointer-events: none;
+  }
+  .hero-logo { width: 120px; height: 120px; border-radius: 26px; box-shadow: 0 0 0 1px var(--border), 0 24px 60px rgba(0,0,0,.5); margin-bottom: 22px; }
+  .hero h1 { font-size: 44px; font-weight: 800; letter-spacing: -1px; }
+  .hero h1 span { color: var(--green); }
+  .hero .tagline { margin: 14px auto 8px; max-width: 640px; color: var(--muted); font-size: 17px; }
+  .hero .sub { color: var(--muted); font-size: 14px; }
+  .hero-badges { margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .hero-badges img { border-radius: 6px; }
+  .hero-actions { margin-top: 30px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, var(--green), #17C985);
+    color: #04251A; font-weight: 700; font-size: 15.5px;
+    padding: 14px 28px; border-radius: 14px; text-decoration: none;
+    box-shadow: 0 12px 32px rgba(34,230,159,.28);
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 16px 40px rgba(34,230,159,.38); }
+  .btn-secondary {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 24px; border-radius: 14px;
+    border: 1px solid var(--border); color: var(--text);
+    text-decoration: none; font-weight: 600; font-size: 14.5px;
+  }
+  .btn-secondary:hover { border-color: var(--green); color: var(--green); }
+
+  /* ── Sections ── */
+  section { padding: 64px 0; }
+  section.alt { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .sec-head { text-align: center; margin-bottom: 40px; }
+  .sec-head .kicker { color: var(--green); font-size: 12.5px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; }
+  .sec-head h2 { font-size: 30px; font-weight: 800; letter-spacing: -.5px; margin-top: 8px; }
+  .sec-head p { color: var(--muted); max-width: 560px; margin: 10px auto 0; font-size: 15px; }
+
+  /* ── Feature cards ── */
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 22px;
+    transition: border-color .2s, transform .2s;
+  }
+  .card:hover { border-color: rgba(34,230,159,.4); transform: translateY(-2px); }
+  .card .ic {
+    width: 40px; height: 40px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--green-dim); margin-bottom: 14px;
+  }
+  .card .ic svg { width: 20px; height: 20px; stroke: var(--green); }
+  .card h3 { font-size: 15.5px; font-weight: 700; margin-bottom: 6px; }
+  .card p { color: var(--muted); font-size: 13.5px; }
+
+  /* ── Screenshots ── */
+  .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .shot { border-radius: 16px; overflow: hidden; border: 1px solid var(--border); background: var(--surface); }
+  .shot img { width: 100%; display: block; }
+  .shot .cap { padding: 10px 14px; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--border); }
+
+  /* ── Steps ── */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; counter-reset: step; }
+  .step { position: relative; background: var(--bg); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
+  .step::before {
+    counter-increment: step; content: "0" counter(step);
+    position: absolute; top: 14px; right: 18px;
+    font-size: 40px; font-weight: 800; color: var(--green-dim);
+  }
+  .step h3 { font-size: 15.5px; font-weight: 700; margin-bottom: 6px; }
+  .step p { color: var(--muted); font-size: 13.5px; }
+
+  /* ── Code ── */
+  .code {
+    background: #04090D; border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px 20px; font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    color: var(--muted); overflow-x: auto; line-height: 1.8;
+  }
+  .code b { color: var(--green); font-weight: 600; }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  th, td { text-align: left; padding: 12px 16px; font-size: 13.5px; border-bottom: 1px solid var(--border); }
+  th { background: var(--surface2); color: var(--text); font-weight: 600; }
+  td { color: var(--muted); }
+  td b { color: var(--text); }
+  tr:last-child td { border-bottom: none; }
+  td a { color: var(--green); text-decoration: none; }
+  td a:hover { text-decoration: underline; }
+
+  /* ── CTA ── */
+  .cta { text-align: center; padding: 72px 0; position: relative; overflow: hidden; }
+  .cta::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(ellipse 55% 70% at 50% 110%, rgba(34,230,159,.16), transparent 70%);
+    pointer-events: none;
+  }
+  .cta h2 { font-size: 32px; font-weight: 800; letter-spacing: -.5px; }
+  .cta p { color: var(--muted); margin: 12px auto 26px; max-width: 480px; }
+
+  footer { border-top: 1px solid var(--border); padding: 40px 0 56px; }
+  .foot { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; align-items: center; }
+  .foot .muted { color: var(--muted); font-size: 13px; }
+  .foot a { color: var(--muted); text-decoration: none; font-size: 13px; margin-left: 18px; }
+  .foot a:hover { color: var(--green); }
+
+  @media (max-width: 860px) {
+    .grid, .shots, .steps { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .grid, .shots, .steps { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 34px; }
+    .nav-links a:not(.btn-ghost) { display: none; }
+    section { padding: 48px 0; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#">
+      <img src="https://raw.githubusercontent.com/soe1hom-arch/AFFT-Toolkit/main/screenshots/logo.png" alt="">
+      AFFT Toolkit
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#preview">Preview</a>
+      <a href="#workspace">Workspace</a>
+      <a href="#requirements">Requirements</a>
+      <a class="btn-ghost" href="https://github.com/soe1hom-arch/AFFT-Toolkit" target="_blank" rel="noopener">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <img class="hero-logo" src="https://raw.githubusercontent.com/soe1hom-arch/AFFT-Toolkit/main/screenshots/logo.png" alt="AFFT Toolkit logo">
+    <h1>AFFT <span>Toolkit</span></h1>
+    <p class="tagline">Android Firmware Full Toolkit — analyze, unpack &amp; repack ROM firmware directly on your Android device.</p>
+    <p class="sub">No PC required. No Termux required. Fully on-device.</p>
+    <div class="hero-badges">
+      <img src="https://img.shields.io/github/v/release/soe1hom-arch/AFFT-Toolkit?style=flat-square&label=Release&color=blue" alt="Release">
+      <img src="https://img.shields.io/github/downloads/soe1hom-arch/AFFT-Toolkit/total?style=flat-square&label=Downloads&color=success" alt="Downloads">
+      <img src="https://img.shields.io/badge/Android-8.0%2B-brightgreen?style=flat-square" alt="Android 8.0+">
+      <img src="https://img.shields.io/badge/ARM64-only-red?style=flat-square" alt="ARM64 only">
+      <img src="https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square" alt="License">
+    </div>
+    <div class="hero-actions">
+      <a class="btn-primary" href="https://github.com/soe1hom-arch/AFFT-Toolkit/releases/latest" target="_blank" rel="noopener">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download APK
+      </a>
+      <a class="btn-secondary" href="https://github.com/soe1hom-arch/AFFT-Toolkit/blob/main/CHANGELOG.md" target="_blank" rel="noopener">View Changelog</a>
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Features</div>
+      <h2>Everything your firmware workflow needs</h2>
+      <p>From analysis to repack — every operation runs on-device inside a project-based workspace.</p>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg></div>
+        <h3>Payload Dumper</h3>
+        <p>Unpack &amp; repack <code>payload.bin</code> OTA firmware with the payload-dumper-go engine.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
+        <h3>Super Image</h3>
+        <p>Unpack &amp; repack <code>super.img</code> — sparse-aware conversion handled automatically.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+        <h3>Filesystem</h3>
+        <p>Extract &amp; repack EROFS/ext4 images with mkfs.erofs, debugfs and make_ext4fs.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+        <h3>Boot Family</h3>
+        <p>Unpack &amp; repack 7 boot image types including <code>vendor_boot</code> with magiskboot.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+        <h3>Firmware Analysis</h3>
+        <p>Metadata-only parsers with health score, validation &amp; recommendations — safe for 8–10+ GB images.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+        <h3>Workspace Projects</h3>
+        <p>Every task runs as a project — create, resume, rename, delete, with chronological operation history.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+        <h3>Firmware Inspector</h3>
+        <p>Dashboard with StatusPanel, WorkspaceCard, QuickMetrics and a live, always-animated status card.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg></div>
+        <h3>AFFT Manager</h3>
+        <p>Device file browser with search, sort, multi-select, copy/move, delete, rename, properties &amp; import.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+        <h3>Premium Appearance</h3>
+        <p>6 theme presets, custom accent &amp; icon colors, dynamic color, custom fonts (Inter &amp; JetBrains Mono).</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <h3>Languages</h3>
+        <p>English (default) and Bahasa Indonesia — persisted across restarts.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+        <h3>Interactive Metadata</h3>
+        <p>Long values (paths, hashes, fingerprints) open a bottom sheet with copy, share &amp; open-folder actions.</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+        <h3>Console &amp; Logs</h3>
+        <p>Real-time output in the sidebar, debug mode, and a log recording toggle.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="preview">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Preview</div>
+      <h2>Built for firmware work</h2>
+      <p>A modern dark UI designed around the tools you use every day.</p>
+    </div>
+    <div class="shots">
+      <div class="shot"><img src="https://raw.githubusercontent.com/soe1hom-arch/AFFT-Toolkit/main/screenshots/main.png" alt="Home dashboard" loading="lazy"><div class="cap">Home · Dashboard</div></div>
+      <div class="shot"><img src="https://raw.githubusercontent.com/soe1hom-arch/AFFT-Toolkit/main/screenshots/payload.png" alt="Payload dumper" loading="lazy"><div class="cap">Payload Dumper</div></div>
+      <div class="shot"><img src="https://raw.githubusercontent.com/soe1hom-arch/AFFT-Toolkit/main/screenshots/super.png" alt="Super image" loading="lazy"><div class="cap">Super Image</div></div>
+      <div class="shot"><img src="https://raw.githubusercontent.com/soe1hom-arch/AFFT-Toolkit/main/screenshots/boot.png" alt="Boot image" loading="lazy"><div class="cap">Boot Image</div></div>
+      <div class="shot"><img src="https://raw.githubusercontent.com/soe1hom-arch/AFFT-Toolkit/main/screenshots/filesystem.png" alt="Filesystem" loading="lazy"><div class="cap">Filesystem</div></div>
+      <div class="shot"><img src="https://raw.githubusercontent.com/soe1hom-arch/AFFT-Toolkit/main/screenshots/filemanager.png" alt="AFFT manager" loading="lazy"><div class="cap">AFFT Manager</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">How it works</div>
+      <h2>Three steps to a repacked ROM</h2>
+    </div>
+    <div class="steps">
+      <div class="step"><h3>Pick your firmware</h3><p>Open Payload, Super, Filesystem or Boot, then select a file from the device or import it via AFFT Manager.</p></div>
+      <div class="step"><h3>Analyze or unpack</h3><p>Let the parsers read metadata instantly, or unpack the image into your workspace project.</p></div>
+      <div class="step"><h3>Modify &amp; repack</h3><p>Edit what you need, repack the image and export it to <code>Download/AFFT</code>.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="workspace">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Workspace</div>
+      <h2>Project-based, resume-friendly</h2>
+      <p>Every operation belongs to a project so you can always continue where you left off.</p>
+    </div>
+    <div class="code">
+<b>workspace/</b><br>
+└── <b>&lt;ProjectName&gt;/</b><br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── metadata.json&nbsp;&nbsp;← project info, device, firmware type, health score<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── logs/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← operation logs<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── output/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← extracted / exported results<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── temp/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← working files<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── cache/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← cached data<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── payload/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← payload.bin work area<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── boot/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← boot images work area<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── super/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← super.img work area<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── filesystem/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← filesystem work area<br>
+&nbsp;&nbsp;&nbsp;&nbsp;├── apk/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← APK work area<br>
+&nbsp;&nbsp;&nbsp;&nbsp;└── reports/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;← analysis reports
+    </div>
+  </div>
+</section>
+
+<section id="requirements">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Requirements</div>
+      <h2>What you need</h2>
+    </div>
+    <table>
+      <tr><th>Requirement</th><th>Details</th></tr>
+      <tr><td><b>Android</b></td><td>8.0+ (API 26)</td></tr>
+      <tr><td><b>Architecture</b></td><td>ARM64 only</td></tr>
+      <tr><td><b>RAM</b></td><td>4 GB minimum (6 GB+ recommended)</td></tr>
+      <tr><td><b>Storage</b></td><td>At least 10 GB free for large firmware files</td></tr>
+      <tr><td><b>Permissions</b></td><td><code>MANAGE_EXTERNAL_STORAGE</code>, foreground service, <code>POST_NOTIFICATIONS</code></td></tr>
+    </table>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Privacy</div>
+      <h2>Your data stays on your device</h2>
+      <p>Working files, workspaces and deployed binaries are excluded from Android Auto Backup &amp; device transfer. Firmware images are never uploaded to cloud backup.</p>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="wrap">
+    <h2>Ready to mod your firmware?</h2>
+    <p>Download the latest APK and start analyzing ROMs on your device today.</p>
+    <a class="btn-primary" href="https://github.com/soe1hom-arch/AFFT-Toolkit/releases/latest" target="_blank" rel="noopener">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download APK
+    </a>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <div class="muted">© 2026 Wandi (soe1hom-arch) · Apache License 2.0</div>
+    <div>
+      <a href="https://github.com/soe1hom-arch/AFFT-Toolkit" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/soe1hom-arch/AFFT-Toolkit/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+      <a href="https://github.com/soe1hom-arch/AFFT-Toolkit/discussions" target="_blank" rel="noopener">Discussions</a>
+      <a href="https://github.com/soe1hom-arch/AFFT-Toolkit/issues" target="_blank" rel="noopener">Report Issue</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,39 @@
+name: "💡 Permintaan Fitur"
+description: "Ajukan ide atau permintaan fitur baru untuk AFFT Toolkit"
+labels: ["enhancement"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ada ide untuk AFFT? Ceritakan! Makin detail makin baik.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Masalah / Kebutuhan"
+      description: "Ceritakan masalah atau kebutuhan yang mendasari fitur ini"
+      placeholder: "Saya sering kesulitan ketika harus..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: "Solusi yang Diinginkan"
+      description: "Jelaskan bagaimana fitur ini bekerja menurutmu"
+      placeholder: "Mungkin bisa ditambahkan tombol untuk..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: "Alternatif"
+      description: "Apakah ada solusi alternatif yang sudah kamu coba?"
+
+  - type: textarea
+    id: context
+    attributes:
+      label: "Konteks Tambahan"
+      description: "Screenshot, contoh dari aplikasi lain, dll."
