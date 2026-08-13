@@ -41,9 +41,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import com.afft.app.service.AFFTService
+import com.afft.app.ui.MainScreen
+import com.afft.app.ui.navigation.DeepLinkRouter
+import com.afft.app.ui.navigation.toAppScreen
 import com.afft.app.ui.theme.FontController
 import com.afft.app.ui.theme.ThemeController
-import com.afft.app.ui.MainScreen
 import com.afft.app.ui.theme.AFFTTheme
 import com.afft.app.ui.theme.family
 import kotlinx.coroutines.launch
@@ -54,6 +56,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         afftService = AFFTService(this)
+
+        // Deep link awal (cold start) dibawa via initialScreen ke MainScreen.
+        DeepLinkRouter.handle(intent?.data)
 
         // Request storage permissions
         requestStoragePermissions()
@@ -103,7 +108,10 @@ class MainActivity : ComponentActivity() {
                                         ),
                                     ),
                         )
-                        MainScreen(afftService = afftService)
+                        MainScreen(
+                            afftService = afftService,
+                            initialScreen = intent?.data?.toAppScreen(),
+                        )
                     }
                     // Request POST_NOTIFICATIONS for Android 13+
                     val notificationLauncher =
@@ -171,5 +179,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        DeepLinkRouter.handle(intent.data)
     }
 }

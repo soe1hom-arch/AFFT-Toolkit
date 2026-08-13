@@ -18,13 +18,12 @@ package com.afft.app.ui
 import com.afft.app.ui.theme.LocalFontFamily
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -48,8 +47,13 @@ import androidx.compose.ui.window.DialogProperties
 import com.afft.app.R
 import com.afft.app.service.AFFTService
 import com.afft.app.ui.FileManagerScreen
+import com.afft.app.ui.navigation.AppScreen
+import com.afft.app.ui.navigation.AppScreenListSaver
+import com.afft.app.ui.navigation.DeepLinkRouter
+import com.afft.app.ui.navigation.FirmwareTool
 import com.afft.app.ui.components.ColoredLogLine
 import com.afft.app.ui.components.LiveStatusCard
+import com.afft.app.ui.components.LogsPanel
 import com.afft.app.ui.components.rememberDoneMessage
 import com.afft.app.ui.components.AboutCreditsContent
 import com.afft.app.ui.components.AboutDeveloperContent
@@ -77,24 +81,58 @@ import com.afft.app.ui.theme.*
 import com.afft.app.ui.theme.LocalIconTint
 import com.afft.app.util.BinaryManager
 import com.afft.app.util.booleanMapSaver
-import com.afft.app.util.formatFileSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.SupervisorJob
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private const val MAX_BACK_STACK_SIZE = 16
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(afftService: AFFTService) {
+fun MainScreen(
+    afftService: AFFTService,
+    initialScreen: AppScreen? = null,
+) {
     val context = LocalContext.current
     val scope = remember { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
     val workspace = remember { WorkspaceCoordinator.create(context.applicationContext) }
-    var selectedSection by rememberSaveable { mutableStateOf("home") }
+    var backStack by rememberSaveable(stateSaver = AppScreenListSaver) {
+        mutableStateOf(listOf(AppScreen.Home))
+    }
+    val screen = backStack.last()
+
+    fun navigate(target: AppScreen) {
+        if (backStack.last() == target) return
+        backStack = (backStack + target).takeLast(MAX_BACK_STACK_SIZE)
+    }
+
+    fun replaceCurrent(target: AppScreen) {
+        backStack = backStack.dropLast(1) + target
+    }
+
+    fun resetToHome() {
+        backStack = listOf(AppScreen.Home)
+    }
+
+    fun openDeepLink(target: AppScreen) {
+        backStack =
+            if (target == AppScreen.Home) {
+                listOf(AppScreen.Home)
+            } else {
+                listOf(AppScreen.Home, target)
+            }
+    }
+
+    BackHandler(enabled = backStack.size > 1) {
+        backStack = backStack.dropLast(1)
+    }
     var debugMode by rememberSaveable { mutableStateOf(false) }
     var logToFileEnabled by rememberSaveable { mutableStateOf(afftService.isLogToFileEnabled()) }
     val logs by afftService.logs.collectAsState()
@@ -149,6 +187,16 @@ fun MainScreen(afftService: AFFTService) {
         }
     }
 
+    // Deep link: rute dari intent (afft://...) dibuka lewat back-stack.
+    // initialScreen hanya diterapkan saat stack masih di akar (cold start);
+    // event onNewIntent dikumpulkan terus menerus dari DeepLinkRouter.
+    LaunchedEffect(initialScreen) {
+        if (initialScreen != null && backStack.size == 1 && backStack.first() == AppScreen.Home) {
+            openDeepLink(initialScreen)
+        }
+        DeepLinkRouter.events.collect { target -> openDeepLink(target) }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -181,54 +229,27 @@ fun MainScreen(afftService: AFFTService) {
                     DrawerMenuItem(
                         iconRes = R.drawable.ic_home,
                         label = "Home",
-                        selected = selectedSection == "home",
+                        selected = screen == AppScreen.Home,
                         onClick = {
-                            selectedSection = "home"
+                            resetToHome()
                             scopeDrawer.launch { drawerState.close() }
                         },
                     )
                     DrawerMenuItem(
-                        iconRes = R.drawable.ic_payload,
-                        label = "Payload",
-                        selected = selectedSection == "payload",
+                        iconRes = R.drawable.ic_archive,
+                        label = "Tools",
+                        selected = screen is AppScreen.Tools,
                         onClick = {
-                            selectedSection = "payload"
-                            scopeDrawer.launch { drawerState.close() }
-                        },
-                    )
-                    DrawerMenuItem(
-                        iconRes = R.drawable.ic_super,
-                        label = "Super",
-                        selected = selectedSection == "super",
-                        onClick = {
-                            selectedSection = "super"
-                            scopeDrawer.launch { drawerState.close() }
-                        },
-                    )
-                    DrawerMenuItem(
-                        iconRes = R.drawable.ic_filesystem,
-                        label = "Filesystem",
-                        selected = selectedSection == "filesystem",
-                        onClick = {
-                            selectedSection = "filesystem"
-                            scopeDrawer.launch { drawerState.close() }
-                        },
-                    )
-                    DrawerMenuItem(
-                        iconRes = R.drawable.ic_boot_image,
-                        label = "Boot",
-                        selected = selectedSection == "boot",
-                        onClick = {
-                            selectedSection = "boot"
+                            navigate((screen as? AppScreen.Tools) ?: AppScreen.Tools(FirmwareTool.PAYLOAD))
                             scopeDrawer.launch { drawerState.close() }
                         },
                     )
                     DrawerMenuItem(
                         iconRes = R.drawable.ic_file_manager,
                         label = "AFFT Manager",
-                        selected = selectedSection == "filemgr",
+                        selected = screen == AppScreen.Files,
                         onClick = {
-                            selectedSection = "filemgr"
+                            navigate(AppScreen.Files)
                             scopeDrawer.launch { drawerState.close() }
                         },
                     )
@@ -434,117 +455,66 @@ fun MainScreen(afftService: AFFTService) {
                     containerColor = MaterialTheme.colorScheme.surface,
                 ) {
                     NavigationBarItem(
-                        selected = selectedSection == "home",
-                        onClick = { selectedSection = "home" },
+                        selected = screen == AppScreen.Home,
+                        onClick = { resetToHome() },
                         icon = { Icon(painterResource(R.drawable.ic_home), "Home", tint = LocalIconTint.current) },
                         label = { Text("Home") },
                     )
-                        NavigationBarItem(
-                            selected = selectedSection == "payload",
-                            onClick = { selectedSection = "payload" },
-                            icon = {
-                                Icon(
-                                    painterResource(R.drawable.ic_payload),
-                                    "Payload",
-                                    tint = LocalIconTint.current,
-                                )
-                            },
-                            label = { Text("Payload") },
-                        )
-                        NavigationBarItem(
-                            selected = selectedSection == "super",
-                            onClick = { selectedSection = "super" },
-                            icon = { Icon(painterResource(R.drawable.ic_super), "Super", tint = LocalIconTint.current) },
-                            label = { Text("Super") },
-                        )
-                        NavigationBarItem(
-                            selected = selectedSection == "filesystem",
-                            onClick = { selectedSection = "filesystem" },
-                            icon = { Icon(painterResource(R.drawable.ic_filesystem), "FS", tint = LocalIconTint.current) },
-                            label = { Text("FS") },
-                        )
-                        NavigationBarItem(
-                            selected = selectedSection == "boot",
-                            onClick = { selectedSection = "boot" },
-                            icon = {
-                                Icon(
-                                    painterResource(R.drawable.ic_boot_image),
-                                    "Boot",
-                                    tint = LocalIconTint.current,
-                                )
-                            },
-                            label = { Text("Boot") },
-                        )
-                        NavigationBarItem(
-                            selected = selectedSection == "filemgr",
-                            onClick = { selectedSection = "filemgr" },
-                            icon = {
-                                Icon(
-                                    painterResource(R.drawable.ic_file_manager),
-                                    "Files",
-                                    tint = LocalIconTint.current,
-                                )
-                            },
-                            label = { Text("Files") },
-                        )
-                    }
+                    NavigationBarItem(
+                        selected = screen is AppScreen.Tools,
+                        onClick = {
+                            navigate((screen as? AppScreen.Tools) ?: AppScreen.Tools(FirmwareTool.PAYLOAD))
+                        },
+                        icon = { Icon(painterResource(R.drawable.ic_archive), "Tools", tint = LocalIconTint.current) },
+                        label = { Text("Tools") },
+                    )
+                    NavigationBarItem(
+                        selected = screen == AppScreen.Files,
+                        onClick = { navigate(AppScreen.Files) },
+                        icon = {
+                            Icon(
+                                painterResource(R.drawable.ic_file_manager),
+                                "Files",
+                                tint = LocalIconTint.current,
+                            )
+                        },
+                        label = { Text("Files") },
+                    )
+                }
             },
         ) { padding ->
             Box(modifier = Modifier.padding(padding)) {
-                screenStateHolder.SaveableStateProvider(selectedSection) {
-                    when (selectedSection) {
-                    "home" ->
-                        HomeScreen(
-                            workspace = workspace,
-                            afftService = afftService,
-                            binariesReady = binariesReady,
-                            binaries = binaryStatus,
-                            logs = logs,
-                            isRunning = isRunning,
-                            progressMessage = progressMessage,
-                            onOpenFolder = { selectedSection = "filemgr" },
-                            onOpenLogs = { selectedSection = "logs" },
-                        )
-                    "payload" ->
-                        PayloadScreen(
-                            workspace = workspace,
-                            afftService = afftService,
-                            logs = logs,
-                            isRunning = isRunning,
-                        )
-                    "super" ->
-                        SuperScreen(
-                            workspace = workspace,
-                            afftService = afftService,
-                            logs = logs,
-                            isRunning = isRunning,
-                        )
-                    "filesystem" ->
-                        FilesystemScreen(
-                            workspace = workspace,
-                            afftService = afftService,
-                            logs = logs,
-                            isRunning = isRunning,
-                        )
-                    "boot" ->
-                        BootScreen(
-                            workspace = workspace,
-                            afftService = afftService,
-                            logs = logs,
-                            isRunning = isRunning,
-                        )
-                    "filemgr" ->
-                        FileManagerScreen(
-                            afftService = afftService,
-                            logs = logs,
-                            isRunning = isRunning,
-                        )
-                    "logs" ->
-                        LogsViewerScreen(
-                            afftService = afftService,
-                        )
+                screenStateHolder.SaveableStateProvider(screen.key) {
+                    when (val current = screen) {
+                        AppScreen.Home ->
+                            HomeScreen(
+                                workspace = workspace,
+                                afftService = afftService,
+                                binariesReady = binariesReady,
+                                binaries = binaryStatus,
+                                logs = logs,
+                                isRunning = isRunning,
+                                progressMessage = progressMessage,
+                                onOpenFolder = { navigate(AppScreen.Files) },
+                                onOpenTool = { tool -> openDeepLink(AppScreen.Tools(tool)) },
+                            )
+                        is AppScreen.Tools ->
+                            ToolsHub(
+                                workspace = workspace,
+                                afftService = afftService,
+                                logs = logs,
+                                isRunning = isRunning,
+                                selectedTool = current.tool,
+                                onToolSelect = { tool -> replaceCurrent(AppScreen.Tools(tool)) },
+                            )
+                        AppScreen.Files ->
+                            FileManagerScreen(
+                                afftService = afftService,
+                                logs = logs,
+                                isRunning = isRunning,
+                            )
+                    }
                 }
-            }
             }
         }
 
@@ -967,13 +937,14 @@ fun HomeScreen(
     isRunning: Boolean,
     progressMessage: String = "",
     onOpenFolder: () -> Unit = {},
-    onOpenLogs: () -> Unit = {},
+    onOpenTool: (FirmwareTool) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = remember { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
     var showHistorySheet by rememberSaveable { mutableStateOf(false) }
     var showCleanConfirmDialog by rememberSaveable { mutableStateOf(false) }
     var showExportDialog by rememberSaveable { mutableStateOf(false) }
+    var logsExpanded by rememberSaveable { mutableStateOf(false) }
     var exportOptions by rememberSaveable(stateSaver = booleanMapSaver) {
         mutableStateOf(
             mapOf(
@@ -1117,7 +1088,7 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(12.dp))
         RecentActivityFeed(
             logs = logs,
-            onOpenLogs = onOpenLogs,
+            onOpenLogs = { logsExpanded = true },
             processActive =
                 isRunning ||
                     workspaceState.state == WorkspaceState.BUSY ||
@@ -1234,6 +1205,45 @@ fun HomeScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Shortcut ke tiap tool — deep link antar-tool dari Home
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ToolShortcutButton(
+                tool = FirmwareTool.PAYLOAD,
+                onOpenTool = onOpenTool,
+                isRunning = isRunning,
+                modifier = Modifier.weight(1f),
+            )
+            ToolShortcutButton(
+                tool = FirmwareTool.SUPER,
+                onOpenTool = onOpenTool,
+                isRunning = isRunning,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ToolShortcutButton(
+                tool = FirmwareTool.FILESYSTEM,
+                onOpenTool = onOpenTool,
+                isRunning = isRunning,
+                modifier = Modifier.weight(1f),
+            )
+            ToolShortcutButton(
+                tool = FirmwareTool.BOOT,
+                onOpenTool = onOpenTool,
+                isRunning = isRunning,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         if (isRunning && progressMessage.isNotEmpty()) {
@@ -1243,6 +1253,62 @@ fun HomeScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Console Logs — panel yang bisa dibuka/tutup langsung di Home
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { logsExpanded = !logsExpanded }
+                            .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_text_snippet),
+                        contentDescription = null,
+                        tint = LocalIconTint.current,
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        "Console Logs",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontFamily = LocalFontFamily.current,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        if (logsExpanded) "Sembunyikan" else "Tampilkan",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Icon(
+                        painterResource(R.drawable.ic_chevron_right),
+                        contentDescription = null,
+                        tint = LocalIconTint.current,
+                        modifier = Modifier.scale(if (logsExpanded) -1f else 1f),
+                    )
+                }
+                if (logsExpanded) {
+                    LogsPanel(
+                        afftService = afftService,
+                        modifier = Modifier.fillMaxWidth().height(420.dp),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Bottom spacing agar tombol/isi terakhir tidak menempel bottom nav
         Spacer(modifier = Modifier.height(24.dp))
@@ -1404,6 +1470,32 @@ private val FeedRed = Color(0xFFFF5252)
  * berjalan (foreground/background) selengkapnya (line log terbaru) plus
  * ringkasan info/warning/error dan badge proses aktif (depan/latar).
  */
+@Composable
+private fun ToolShortcutButton(
+    tool: FirmwareTool,
+    onOpenTool: (FirmwareTool) -> Unit,
+    isRunning: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedButton(
+        onClick = { onOpenTool(tool) },
+        modifier = modifier,
+        enabled = !isRunning,
+    ) {
+        Icon(painterResource(tool.iconRes()), null, tint = LocalIconTint.current)
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(tool.label, fontSize = 12.sp, maxLines = 1)
+    }
+}
+
+private fun FirmwareTool.iconRes(): Int =
+    when (this) {
+        FirmwareTool.PAYLOAD -> R.drawable.ic_payload
+        FirmwareTool.SUPER -> R.drawable.ic_super
+        FirmwareTool.FILESYSTEM -> R.drawable.ic_filesystem
+        FirmwareTool.BOOT -> R.drawable.ic_boot_image
+    }
+
 @Composable
 private fun RecentActivityFeed(
     logs: List<String>,
@@ -1655,210 +1747,5 @@ private fun BulletText(text: String) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
         )
-    }
-}
-
-@Composable
-fun LogsViewerScreen(afftService: AFFTService) {
-    val context = LocalContext.current
-    val scope = remember { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
-    var logFiles by remember { mutableStateOf<List<File>>(emptyList()) }
-    var selectedLog by remember { mutableStateOf<File?>(null) }
-    var logContent by rememberSaveable { mutableStateOf("") }
-    var isLoading by rememberSaveable { mutableStateOf(true) }
-
-    // Load log files
-    LaunchedEffect(Unit) {
-        logFiles = afftService.getLogFiles()
-        isLoading = false
-    }
-
-    if (selectedLog != null) {
-        // View selected log file
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = {
-                    selectedLog = null
-                    logContent = ""
-                }) {
-                    Icon(painterResource(R.drawable.ic_arrow_back), null, tint = LocalIconTint.current)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Kembali")
-                }
-                Text(
-                    selectedLog?.name ?: "",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontFamily = LocalFontFamily.current,
-                )
-                Text(
-                    "${selectedLog?.let { file -> formatFileSize(file.length()) } ?: ""}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Load content
-            LaunchedEffect(selectedLog) {
-                selectedLog?.let { file ->
-                    logContent = afftService.getLogContent(file)
-                }
-            }
-
-            Card(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                LazyColumn(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .padding(8.dp),
-                ) {
-                    val lines = logContent.lines()
-                    items(lines.size) { index ->
-                        if (index < lines.size) {
-                            ColoredLogLine(
-                                text = lines[index],
-                                modifier = Modifier.padding(vertical = 1.dp),
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        afftService.saveCurrentLogToDownloads()
-                    }
-                }) {
-                    Icon(painterResource(R.drawable.ic_save_alt), null, tint = LocalIconTint.current)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Simpan ke Downloads")
-                }
-            }
-        }
-    } else {
-        // List log files
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    "Log Files",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontFamily = LocalFontFamily.current,
-                )
-                Row {
-                    // Refresh button
-                    IconButton(onClick = {
-                        isLoading = true
-                        scope.launch {
-                            logFiles = afftService.getLogFiles()
-                            isLoading = false
-                        }
-                    }) {
-                        Icon(painterResource(R.drawable.ic_refresh), "Refresh", tint = LocalIconTint.current)
-                    }
-                    // Clear old logs
-                    IconButton(onClick = {
-                        scope.launch {
-                            afftService.clearOldLogs(20)
-                            logFiles = afftService.getLogFiles()
-                        }
-                    }) {
-                        Icon(painterResource(R.drawable.ic_cleaning_services), "Clean Old", tint = LocalIconTint.current)
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                "Folder: ${afftService.getLogsDir().absolutePath}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontFamily = LocalFontFamily.current,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else if (logFiles.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            painterResource(R.drawable.ic_text_snippet),
-                            null,
-                            tint = LocalIconTint.current,
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "Belum ada log file",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "Jalankan operasi terlebih dahulu",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(logFiles.size) { index ->
-                        val file = logFiles[index]
-                        Card(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp)
-                                    .clickable {
-                                        selectedLog = file
-                                    },
-                            colors =
-                                CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                ),
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        file.name,
-                                        fontFamily = LocalFontFamily.current,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                    )
-                                    Text(
-                                        formatFileSize(file.length()),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontFamily = LocalFontFamily.current,
-                                    )
-                                }
-                                Icon(
-                                    painterResource(R.drawable.ic_chevron_right),
-                                    null,
-                                    tint = LocalIconTint.current,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
