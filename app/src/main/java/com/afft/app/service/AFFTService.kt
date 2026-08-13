@@ -25,25 +25,24 @@ import com.afft.app.util.ShellExecutor
 import com.afft.app.util.SparseImage
 import com.afft.app.util.formatFileSize
 import com.afft.app.util.parsePayloadProgressLine
-import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
+import kotlin.coroutines.coroutineContext
 
 class AFFTService(
     private val context: Context,
@@ -51,10 +50,23 @@ class AFFTService(
     private val _logs = MutableStateFlow<List<String>>(emptyList())
     val logs: StateFlow<List<String>> = _logs.asStateFlow()
 
-    // Buffer mutable untuk in-memory logs dengan batas aman (hindari O(n²) copy)
-    private val logBuffer = mutableListOf<String>()
-    private val maxInMemoryLogs = 1500
-    private val KEY_LOG_TO_FILE = "log_to_file"
+    // Pipeline log (buffer, throttle StateFlow, file log) & operasi file
+    // didelegasikan ke class pendamping agar service tetap fokus pada alur kerja.
+    private val logManager =
+        LogManager(
+            prefs = context.getSharedPreferences("afft_log_prefs", Context.MODE_PRIVATE),
+            tempDir = ::getTempDir,
+            exportDir = ::getExportDir,
+            onLogsChanged = { _logs.value = it },
+        )
+
+    private val storageManager =
+        StorageManager(
+            workDir = ::getWorkDir,
+            exportDir = ::getExportDir,
+            onLog = ::addLog,
+            onLiveActivity = ::setLiveActivity,
+        )
 
     private val _isRunning = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
@@ -73,41 +85,13 @@ class AFFTService(
     private val _currentPartition = MutableStateFlow("")
     val currentPartition: StateFlow<String> = _currentPartition.asStateFlow()
 
-    private var debugMode = false
-    private var logToFileEnabled = false
-    private val prefs: android.content.SharedPreferences by lazy {
-        context.getSharedPreferences(
-            "afft_log_prefs",
-            android.content.Context.MODE_PRIVATE,
-        )
-    }
+    fun setLogToFileEnabled(enabled: Boolean) = logManager.setLogToFileEnabled(enabled)
 
-    fun setLogToFileEnabled(enabled: Boolean) {
-        logToFileEnabled = enabled
-        try {
-            prefs.edit().putBoolean(KEY_LOG_TO_FILE, enabled).apply()
-        } catch (e: Exception) {
-            android.util.Log.w("AFFTService", "Gagal simpan preferensi log: ${e.message}")
-        }
-        // Buat file log saat fitur diaktifkan (lazy).
-        if (enabled && _currentLogFile == null) {
-            try {
-                initLogFile()
-            } catch (_: Exception) {
-            }
-        } else if (!enabled) {
-            _currentLogFile = null
-        }
-    }
+    fun isLogToFileEnabled(): Boolean = logManager.logToFileEnabled
 
-    fun isLogToFileEnabled(): Boolean = logToFileEnabled
+    fun toggleDebug() = logManager.toggleDebug()
 
-    fun toggleDebug() {
-        debugMode = !debugMode
-        addLog("[INFO] Debug mode: ${if (debugMode) "ON" else "OFF"}")
-    }
-
-    fun isDebugMode(): Boolean = debugMode
+    fun isDebugMode(): Boolean = logManager.debugMode
 
     // Foreground service sudah di-start dari Application.onCreate() dan
     // akan tetap running selama aplikasi aktif. Kita hanya perlu manage
@@ -133,53 +117,11 @@ class AFFTService(
         }
     }
 
-    private var _currentLogFile: File? = null
-    val currentLogFile: File? get() = _currentLogFile
+    val currentLogFile: File? get() = logManager.currentLogFile
 
     init {
-        // Baca preferensi pencatatan log (default MATI). File log hanya dibuat
-        // saat fitur diaktifkan — tidak ada file kosong per sesi.
-        try {
-            logToFileEnabled = prefs.getBoolean(KEY_LOG_TO_FILE, false)
-        } catch (_: Exception) {
-            logToFileEnabled = false
-        }
-        if (logToFileEnabled) {
-            try {
-                initLogFile()
-            } catch (_: Exception) {
-            }
-        }
-    }
-
-    
-    private fun initLogFile() {
-        try {
-            val logsDir = File(getTempDir(), "logs")
-            logsDir.mkdirs()
-            val timestamp =
-                java.text
-                    .SimpleDateFormat(
-                        "yyyy-MM-dd_HH-mm-ss",
-                        java.util.Locale.US,
-                    ).format(java.util.Date())
-            _currentLogFile = File(logsDir, "log_$timestamp.txt")
-            _currentLogFile?.writeText("=== AFFT Log Session: $timestamp ===\n")
-            android.util.Log.d("AFFTService", "[LOG] Log file: ${_currentLogFile?.absolutePath}")
-        } catch (e: Exception) {
-            android.util.Log.e("AFFTService", "Gagal init log file: ${e.message}")
-        }
-    }
-
-    // Filter progress bar lines (noise reduction)
-    private fun isProgressBarLine(text: String): Boolean {
-        // Lewati ANSI escape sequences dari mpb progress bar
-        if (text.contains("\u001b[")) return true
-        // Lewati line kosong atau hanya kontrol karakter
-        if (text.isBlank()) return true
-        // Lewati format progress bar standard
-        // Contoh: "system (821 MB) [========>       ] 45%"
-        return text.matches(Regex(""".*\[[= >]+\].*\d+%"""))
+        // Baca preferensi & buka file log bila aktif (lihat LogManager).
+        logManager.init()
     }
 
     // Parse progress dari stdout payload-dumper-go untuk StateFlow
@@ -215,71 +157,14 @@ class AFFTService(
         }
     }
 
-    // Throttle mechanism: only update StateFlow every 300ms
-    private var lastStateUpdate = 0L
-    private val stateUpdateInterval = 300L
-
-    // Kunci akses logBuffer: addLog dipanggil dari thread shell (raw Thread)
-    // dan coroutine secara bersamaan, jadi semua mutasi harus tersinkronisasi.
-    private val logLock = Any()
-
-    private fun addLog(text: String) {
-        // Filter progress bar lines - skip completely (no UI, no log file)
-        if (isProgressBarLine(text)) {
-            return
-        }
-        // Filter erofs xattr warnings (noise from mkfs.erofs on FUSE filesystem)
-        // These are not errors - just warnings about inaccessible extended attributes
-        if (text.contains("skipped inaccessible xattr", ignoreCase = true) ||
-            text.contains("posix_acl_default", ignoreCase = true) ||
-            text.contains("posix_acl_access", ignoreCase = true) ||
-            text.contains("erofs: skipped", ignoreCase = true)
-        ) {
-            return
-        }
-
-        synchronized(logLock) {
-            // Efficient O(1) add ke mutable buffer (hindari O(n) copy listOf)
-            logBuffer.add(text)
-            // Trim buffer jika melebihi batas (hapus paling lama)
-            if (logBuffer.size > maxInMemoryLogs + 200) {
-                val excess = logBuffer.size - maxInMemoryLogs
-                repeat(excess) { logBuffer.removeAt(0) }
-            }
-
-            // Throttle StateFlow update (max every 300ms)
-            val now = System.currentTimeMillis()
-            if (now - lastStateUpdate >= stateUpdateInterval) {
-                // Snapshot untuk state
-                _logs.value = logBuffer.toList()
-                lastStateUpdate = now
-            }
-        }
-
-        android.util.Log.d("AFFTService", text)
-        // Write to log file (hanya jika pencatatan log aktif)
-        val logFile = _currentLogFile
-        if (logToFileEnabled && logFile != null) {
-            try {
-                synchronized(logLock) {
-                    logFile.appendText("$text\n")
-                }
-            } catch (e: Exception) {
-                android.util.Log.w("AFFTService", "Gagal tulis log file: ${e.message}")
-            }
-        }
-    }
+    private fun addLog(text: String) = logManager.addLog(text)
 
     // Publish snapshot log terbaru secara paksa (dipanggil saat operasi selesai)
-    private fun flushLogs() {
-        synchronized(logLock) {
-            _logs.value = logBuffer.toList()
-        }
-    }
+    private fun flushLogs() = logManager.flush()
 
     private fun updateProgress(msg: String) {
         _progressMessage.value = msg
-        if (debugMode) addLog("[INFO] $msg")
+        if (logManager.debugMode) addLog("[INFO] $msg")
         android.util.Log.d("AFFTService", msg)
     }
 
@@ -288,7 +173,10 @@ class AFFTService(
      * progress agar kartu status tidak menampilkan nilai lama. Menolak (false)
      * bila ada operasi lain yang masih berjalan; pemanggil wajib menolak.
      */
-    private fun beginOperation(opName: String, initialMessage: String): Boolean {
+    private fun beginOperation(
+        opName: String,
+        initialMessage: String,
+    ): Boolean {
         if (_isRunning.value) {
             addLog("[WARN] '$opName' dilewati: operasi lain masih berjalan")
             return false
@@ -310,356 +198,66 @@ class AFFTService(
      * Semua jalur gagal operasi memakai ini agar user melihat error langsung
      * di kartu Live Status (bukan hanya log).
      */
-    private fun failResult(title: String, message: String, outputPath: String = ""): OperationResult {
+    private fun failResult(
+        title: String,
+        message: String,
+        outputPath: String = "",
+    ): OperationResult {
         _progressMessage.value = "\u274C $title gagal: $message"
         return OperationResult(false, title, message, outputPath)
     }
 
     fun clearLogs() {
-        _logs.value = emptyList()
-        synchronized(logLock) { logBuffer.clear() }
         _progressMessage.value = ""
         _progressPercent.value = 0
         _currentPartition.value = ""
-        initLogFile()
+        logManager.clear()
     }
 
-    suspend fun getLogFiles(): List<File> {
-        val logsDir = File(getTempDir(), "logs")
-        if (!logsDir.exists()) return emptyList()
-        return withContext(Dispatchers.IO) {
-            logsDir
-                .listFiles()
-                ?.filter { it.name.endsWith(".txt") }
-                ?.sortedByDescending { it.lastModified() } ?: emptyList()
-        }
-    }
+    suspend fun getLogFiles(): List<File> = logManager.getLogFiles()
 
-    suspend fun getLogContent(logFile: File): String =
-        withContext(Dispatchers.IO) {
-            try {
-                logFile.readText()
-            } catch (e: Exception) {
-                "Gagal membaca log: ${e.message}"
-            }
-        }
+    suspend fun getLogContent(logFile: File): String = logManager.getLogContent(logFile)
 
-    fun getLogsDir(): File = File(getTempDir(), "logs")
+    fun getLogsDir(): File = logManager.getLogsDir()
 
     /**
      * Simpan semua log saat ini ke file di Downloads/AFFT/logs/
      */
-    suspend fun saveCurrentLogToDownloads(): File? {
-        val logs = _logs.value
-        if (logs.isEmpty()) return null
-        return withContext(Dispatchers.IO) {
-            try {
-                val downloadDir = File(getExportDir(), "logs")
-                downloadDir.mkdirs()
-                val timestamp =
-                    java.text
-                        .SimpleDateFormat(
-                            "yyyyMMdd_HHmmss",
-                            java.util.Locale.US,
-                        ).format(java.util.Date())
-                val logFile = File(downloadDir, "afft_log_$timestamp.txt")
-                logFile.writeText(logs.joinToString("\n"))
-                addLog("[OK] Log tersimpan: ${logFile.absolutePath}")
-                logFile
-            } catch (e: Exception) {
-                addLog("[ERROR] Gagal simpan log: ${e.message}")
-                null
-            }
-        }
-    }
+    suspend fun saveCurrentLogToDownloads(): File? = logManager.saveCurrentLogToDownloads(_logs.value)
 
     /**
      * Hapus log file lama, sisakan hanya [maxFiles] terbaru
      */
-    suspend fun clearOldLogs(maxFiles: Int = 20) {
-        withContext(Dispatchers.IO) {
-            try {
-                val logsDir = File(getTempDir(), "logs")
-                if (!logsDir.exists()) return@withContext
-                val files =
-                    logsDir
-                        .listFiles()
-                        ?.filter { it.name.endsWith(".txt") }
-                        ?.sortedByDescending { it.lastModified() } ?: return@withContext
-                if (files.size <= maxFiles) return@withContext
-                files.drop(maxFiles).forEach { file ->
-                    try {
-                        file.delete()
-                    } catch (_: Exception) {
-                    }
-                }
-            } catch (_: Exception) {
-            }
-        }
-    }
+    suspend fun clearOldLogs(maxFiles: Int = 20) = logManager.clearOldLogs(maxFiles)
 
-    fun getFreeSpace(path: String): Long =
-        try {
-            val dir = File(path)
-            if (!dir.exists()) dir.mkdirs()
-            dir.freeSpace
-        } catch (e: Exception) {
-            -1L
-        }
+    fun getFreeSpace(path: String): Long = storageManager.getFreeSpace(path)
 
     fun checkStorageSpace(
         fileSize: Long,
         destPath: String,
-    ): Boolean {
-        val free = getFreeSpace(destPath)
-        if (free <= 0) return true // can't check, allow
-        if (fileSize > free) {
-            addLog(
-                "[ERROR] Ruang penyimpanan tidak cukup! Butuh ${formatFileSize(
-                    fileSize,
-                )}, tersedia ${formatFileSize(free)}",
-            )
-            return false
-        }
-        return true
-    }
+    ): Boolean = storageManager.checkStorageSpace(fileSize, destPath)
 
-    suspend fun deleteFileWithSafety(file: File): Boolean {
-        return withContext(Dispatchers.IO) {
-            try {
-                val workDir = getWorkDir()
-                val canonWork = workDir.canonicalPath
-                val canonFile = file.canonicalPath
-                val downloadAFFT = getExportDir()
-                val canonDl = downloadAFFT.canonicalPath
-
-                // Izinkan hapus di workDir ATAU di Downloads/AFFT
-                val allowed =
-                    canonFile.startsWith(canonWork + File.separator) ||
-                        canonFile.startsWith(canonDl + File.separator)
-                if (!allowed) {
-                    addLog("[ERROR] Safety abort: ${file.name} di luar work dir & Downloads/AFFT!")
-                    return@withContext false
-                }
-
-                setLiveActivity("Menghapus ${file.name}...")
-                if (file.isDirectory) {
-                    file.deleteRecursively()
-                } else {
-                    file.delete()
-                }
-
-                if (file.exists()) {
-                    addLog("[ERROR] Gagal menghapus: ${file.name} (masih ada)")
-                    false
-                } else {
-                    addLog("[OK] Dihapus: ${file.name}")
-                    true
-                }
-            } catch (e: Exception) {
-                addLog("[ERROR] Gagal menghapus ${file.name}: ${e.message}")
-                false
-            }
-        }
-    }
+    suspend fun deleteFileWithSafety(file: File): Boolean = storageManager.deleteFileWithSafety(file)
 
     suspend fun createFolder(
         parentDir: File,
         name: String,
-    ): Boolean {
-        return withContext(Dispatchers.IO) {
-            val safeName = name.trim()
-            if (safeName.isEmpty() || safeName.contains('/') || safeName.contains('\\')) {
-                addLog("[ERROR] Nama folder tidak valid: $name")
-                return@withContext false
-            }
-            val target = File(parentDir, safeName)
-            if (target.exists()) {
-                addLog("[ERROR] Sudah ada: ${target.absolutePath}")
-                return@withContext false
-            }
-            val ok =
-                try {
-                    target.mkdirs()
-                } catch (e: Exception) {
-                    addLog("[ERROR] Gagal membuat folder: ${e.message}")
-                    false
-                }
-            if (ok) {
-                addLog("[OK] Folder dibuat: ${target.absolutePath}")
-            } else {
-                addLog("[ERROR] Gagal membuat folder: ${target.absolutePath}")
-            }
-            ok
-        }
-    }
+    ): Boolean = storageManager.createFolder(parentDir, name)
 
     suspend fun renameFile(
         file: File,
         newName: String,
-    ): Boolean {
-        return withContext(Dispatchers.IO) {
-            val safeName = newName.trim()
-            if (safeName.isEmpty() || safeName.contains('/') || safeName.contains('\\')) {
-                addLog("[ERROR] Nama tidak valid: $newName")
-                return@withContext false
-            }
-            val dest = File(file.parentFile, safeName)
-            if (dest.exists()) {
-                addLog("[ERROR] Sudah ada: ${dest.absolutePath}")
-                return@withContext false
-            }
-            setLiveActivity("Mengubah nama ${file.name}...")
-            val ok =
-                try {
-                    file.renameTo(dest)
-                } catch (e: Exception) {
-                    addLog("[ERROR] Gagal rename: ${e.message}")
-                    false
-                }
-            if (ok) {
-                addLog("[OK] Diubah nama: ${file.name} → $safeName")
-            } else {
-                addLog("[ERROR] Gagal mengubah nama: ${file.name}")
-            }
-            ok
-        }
-    }
+    ): Boolean = storageManager.renameFile(file, newName)
 
     suspend fun copyFileTo(
         src: File,
         destDir: File,
-    ): Boolean {
-        return withContext(Dispatchers.IO) {
-            try {
-                // Validasi sumber
-                if (!src.exists()) {
-                    addLog("[ERROR] Sumber tidak ditemukan: ${src.absolutePath}")
-                    return@withContext false
-                }
-                if (!src.canRead()) {
-                    addLog("[ERROR] Tidak bisa membaca: ${src.absolutePath} (izin?)")
-                    return@withContext false
-                }
-
-                val size =
-                    if (src.isDirectory) {
-                        src.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-                    } else {
-                        src.length()
-                    }
-                addLog("[INFO] Ukuran: ${formatFileSize(size)}")
-
-                if (!checkStorageSpace(size, destDir.absolutePath)) {
-                    return@withContext false
-                }
-                if (!destDir.exists()) destDir.mkdirs()
-                if (!destDir.exists()) {
-                    addLog("[ERROR] Gagal membuat folder tujuan: ${destDir.absolutePath}")
-                    return@withContext false
-                }
-
-                val dest = resolveDestFile(src, destDir)
-                addLog("[INFO] Menyalin: ${src.name} → ${dest.parent}")
-                setLiveActivity("Menyalin ${src.name} → ${destDir.name}...")
-
-                if (src.isDirectory) {
-                    src.copyRecursively(dest, overwrite = false)
-                } else {
-                    // Gunakan stream untuk memastikan file benar-benar tersalin
-                    src.inputStream().use { input ->
-                        dest.outputStream().use { output ->
-                            copyStreamCancellable(input, output)
-                        }
-                    }
-                }
-
-                // Verifikasi hasil
-                if (dest.exists() && (dest.isDirectory || dest.length() == src.length())) {
-                    addLog("[OK] Disalin: ${src.name} → ${destDir.name}/")
-                    true
-                } else {
-                    val destSize = if (dest.exists()) formatFileSize(dest.length()) else "0"
-                    addLog("[ERROR] Hasil copy tidak valid! Dest size: $destSize")
-                    false
-                }
-            } catch (e: Exception) {
-                addLog("[ERROR] Gagal menyalin ${src.name}: ${e.message}")
-                false
-            }
-        }
-    }
+    ): Boolean = storageManager.copyFileTo(src, destDir)
 
     suspend fun moveFileTo(
         src: File,
         destDir: File,
-    ): Boolean {
-        return withContext(Dispatchers.IO) {
-            try {
-                if (!src.exists()) {
-                    addLog("[ERROR] Sumber tidak ditemukan: ${src.absolutePath}")
-                    return@withContext false
-                }
-                val size =
-                    if (src.isDirectory) {
-                        src.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-                    } else {
-                        src.length()
-                    }
-                if (!checkStorageSpace(size, destDir.absolutePath)) {
-                    return@withContext false
-                }
-                if (!destDir.exists()) destDir.mkdirs()
-                val dest = resolveDestFile(src, destDir)
-                addLog("[INFO] Memindah: ${src.name} → ${dest.parent}")
-                setLiveActivity("Memindah ${src.name} → ${destDir.name}...")
-
-                var moved = src.renameTo(dest)
-                if (!moved) {
-                    addLog("[INFO] rename gagal, fallback copy+delete...")
-                    if (src.isDirectory) {
-                        src.copyRecursively(dest, overwrite = true)
-                        src.deleteRecursively()
-                    } else {
-                        src.inputStream().use { input ->
-                            dest.outputStream().use { output ->
-                                copyStreamCancellable(input, output)
-                            }
-                        }
-                        src.delete()
-                    }
-                    moved = true
-                }
-
-                if (dest.exists()) {
-                    addLog("[OK] Dipindah: ${src.name} → ${destDir.name}/")
-                    true
-                } else {
-                    addLog("[ERROR] Gagal memindah: ${src.name}")
-                    false
-                }
-            } catch (e: Exception) {
-                addLog("[ERROR] Gagal memindah ${src.name}: ${e.message}")
-                false
-            }
-        }
-    }
-
-    private fun resolveDestFile(
-        src: File,
-        destDir: File,
-    ): File {
-        var dest = File(destDir, src.name)
-        var counter = 1
-        while (dest.exists()) {
-            val name = src.nameWithoutExtension
-            val ext = src.extension
-            val newName = if (ext.isNotEmpty()) "${name}_$counter.$ext" else "${name}_$counter"
-            dest = File(destDir, newName)
-            counter++
-        }
-        return dest
-    }
+    ): Boolean = storageManager.moveFileTo(src, destDir)
 
     suspend fun pickAndCopyToInput(uri: Uri): File? = copyPickedFileToInput(uri)
 
@@ -705,7 +303,7 @@ class AFFTService(
         File(getTempDir(), "img_src").mkdirs()
         File(getTempDir(), "filesystem_work").mkdirs()
         File(getTempDir(), "logs").mkdirs()
-        initLogFile()
+        logManager.initLogFile()
     }
 
     /**
@@ -721,11 +319,11 @@ class AFFTService(
                 val inputDir = getInputDir()
                 val fileName = resolveFileName(uri) ?: "imported_${System.currentTimeMillis()}"
                 // Hindari menimpa file dengan nama sama (payload.bin, dll).
-                val destFile = resolveDestFile(File(fileName), inputDir)
+                val destFile = storageManager.resolveDestFile(File(fileName), inputDir)
                 setLiveActivity("Menyalin file $fileName...")
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     FileOutputStream(destFile).use { output ->
-                        copyStreamCancellable(input, output)
+                        storageManager.copyStreamCancellable(input, output)
                     }
                 }
                 addLog("[OK] File disalin ke input/: $fileName")
@@ -754,23 +352,6 @@ class AFFTService(
             uri.lastPathSegment
         }
 
-    /**
-     * Salin stream secara cancel-aware: cek pembatalan tiap 64 KB.
-     * Melempar [CancellationException] bila coroutine dibatalkan di tengah salin.
-     */
-    private suspend fun copyStreamCancellable(
-        input: java.io.InputStream,
-        output: FileOutputStream,
-    ) {
-        val buffer = ByteArray(1 shl 16)
-        while (true) {
-            val read = input.read(buffer)
-            if (read < 0) break
-            output.write(buffer, 0, read)
-            coroutineContext.ensureActive()
-        }
-    }
-
     /** Konversi sparse->raw dengan hormat terhadap pembatalan coroutine. */
     private suspend fun sparseToRawCancellable(
         src: File,
@@ -786,13 +367,13 @@ class AFFTService(
         destFile: File,
     ): Boolean =
         try {
-            if (debugMode) addLog("[INFO] Copying $uri -> ${destFile.absolutePath}")
+            if (logManager.debugMode) addLog("[INFO] Copying $uri -> ${destFile.absolutePath}")
             context.contentResolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(destFile).use { output ->
-                    copyStreamCancellable(input, output)
+                    storageManager.copyStreamCancellable(input, output)
                 }
             }
-            if (debugMode) addLog("[OK] Copy selesai: ${destFile.name}")
+            if (logManager.debugMode) addLog("[OK] Copy selesai: ${destFile.name}")
             true
         } catch (e: Exception) {
             addLog("[ERROR] Failed to copy file: ${e.message}")
@@ -1290,7 +871,7 @@ class AFFTService(
                                 binaryPath = simg2img,
                                 args = listOf(img.absolutePath, rawFile.absolutePath),
                                 workingDir = getTempDir(),
-                                onOutput = { line -> if (debugMode) addLog(line) },
+                                onOutput = { line -> if (logManager.debugMode) addLog(line) },
                             )
                         convOk = result.exitCode == 0 && rawFile.exists() && rawFile.length() > 0
                         if (convOk) {
@@ -1376,7 +957,7 @@ class AFFTService(
 
             updateProgress("Menjalankan lpmake...")
             addLog("Running: lpmake ...")
-            if (debugMode) addLog("[DEBUG] ${cmd.joinToString(" ")}")
+            if (logManager.debugMode) addLog("[DEBUG] ${cmd.joinToString(" ")}")
 
             val result =
                 ShellExecutor.executeBinary(
@@ -1471,7 +1052,7 @@ class AFFTService(
             addLog("Mengidentifikasi tipe filesystem...")
 
             // Debug: check first bytes and EROFS magic
-            if (debugMode) {
+            if (logManager.debugMode) {
                 try {
                     val debugBytes = ByteArray(16)
                     java.io.RandomAccessFile(workingFile, "r").use { it.readFully(debugBytes) }
@@ -1977,13 +1558,6 @@ class AFFTService(
         }
     }
 
-    private fun calculateDirSize(dir: File): Long =
-        try {
-            dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-        } catch (e: Exception) {
-            16777216L // 16MB default
-        }
-
     /**
      * Helper untuk menjalankan mkfs.erofs dengan parameter kompresi spesifik.
      * Mengikuti standar Google:
@@ -2052,7 +1626,7 @@ class AFFTService(
     ): Boolean {
         if (outputFile.exists()) outputFile.delete()
 
-        val sizeBytes = calculateDirSize(srcDir)
+        val sizeBytes = storageManager.calculateDirSize(srcDir)
         val partitionSize = ((sizeBytes * 1.25).toLong() + 4095) / 4096 * 4096
         addLog("[INFO] Menjalankan make_ext4fs -s -l $partitionSize ${outputFile.name} ${srcDir.name}/")
 
@@ -2515,7 +2089,7 @@ class AFFTService(
         return try {
             val sourceFile = File(resultPath)
             if (!sourceFile.exists()) {
-                if (debugMode) addLog("[DEBUG] Source file not found: $resultPath")
+                if (logManager.debugMode) addLog("[DEBUG] Source file not found: $resultPath")
                 return false
             }
 
