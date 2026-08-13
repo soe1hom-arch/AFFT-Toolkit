@@ -51,6 +51,8 @@ import com.afft.app.ui.navigation.AppScreen
 import com.afft.app.ui.navigation.AppScreenListSaver
 import com.afft.app.ui.navigation.DeepLinkRouter
 import com.afft.app.ui.navigation.FirmwareTool
+import com.afft.app.ui.components.AppDialog
+import com.afft.app.ui.components.CheckableOptionRow
 import com.afft.app.ui.components.ColoredLogLine
 import com.afft.app.ui.components.LiveStatusCard
 import com.afft.app.ui.components.LogsPanel
@@ -1315,59 +1317,56 @@ fun HomeScreen(
 
         // Export dialog
         if (showExportDialog) {
-            AlertDialog(
-                onDismissRequest = { showExportDialog = false },
-                title = { Text("Export ke Downloads/AFFT") },
-                text = {
-                    Column {
-                        Text("Pilih folder yang akan diekspor:", style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.height(8.dp))
+            AppDialog(
+                iconRes = R.drawable.ic_save_alt,
+                title = "Export ke Downloads/AFFT",
+                subtitle = "Pilih folder workspace untuk disalin ke Downloads/AFFT/.",
+                onDismiss = { showExportDialog = false },
+                content = {
+                    Column(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 320.dp)
+                                .verticalScroll(rememberScrollState()),
+                    ) {
                         exportOptions.forEach { (folder, selected) ->
-                            Row(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            exportOptions = exportOptions + (folder to !selected)
-                                        }.padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Checkbox(
-                                    checked = selected,
-                                    onCheckedChange = { checked ->
-                                        exportOptions = exportOptions + (folder to checked)
-                                    },
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(folder, fontFamily = LocalFontFamily.current)
-                            }
+                            CheckableOptionRow(
+                                label = folder,
+                                checked = selected,
+                                onCheckedChange = { checked ->
+                                    exportOptions = exportOptions + (folder to checked)
+                                },
+                            )
                         }
                     }
                 },
-                confirmButton = {
-                    Button(onClick = {
-                        showExportDialog = false
-                        scope.launch {
-                            val selectedFolders = exportOptions.filter { it.value }.keys.toList()
-                            if (selectedFolders.isEmpty()) {
-                                Toast.makeText(context, "Pilih minimal satu folder", Toast.LENGTH_SHORT).show()
-                                return@launch
-                            }
-                            Toast
-                                .makeText(
-                                    context,
-                                    "Mengekspor ${selectedFolders.size} folder...",
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            afftService.exportSelectedToDownloads(selectedFolders)
-                        }
-                    }) {
-                        Text("Export")
-                    }
-                },
-                dismissButton = {
+                footer = {
                     TextButton(onClick = { showExportDialog = false }) {
                         Text("Batal")
+                    }
+                    Button(
+                        onClick = {
+                            showExportDialog = false
+                            scope.launch {
+                                val selectedFolders = exportOptions.filter { it.value }.keys.toList()
+                                if (selectedFolders.isEmpty()) {
+                                    Toast.makeText(context, "Pilih minimal satu folder", Toast.LENGTH_SHORT).show()
+                                    return@launch
+                                }
+                                Toast
+                                    .makeText(
+                                        context,
+                                        "Mengekspor ${selectedFolders.size} folder...",
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                afftService.exportSelectedToDownloads(selectedFolders)
+                            }
+                        },
+                    ) {
+                        Icon(painterResource(R.drawable.ic_save_alt), null, tint = LocalIconTint.current)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Export")
                     }
                 },
             )
@@ -1375,45 +1374,51 @@ fun HomeScreen(
 
         // Clean dialog
         if (showCleanConfirmDialog) {
-            AlertDialog(
-                onDismissRequest = { showCleanConfirmDialog = false },
-                icon = {
-                    Icon(painterResource(R.drawable.ic_warning), null, tint = LocalIconTint.current)
-                },
-                title = { Text("Pilih Folder untuk Dibersihkan") },
-                text = {
-                    Column {
-                        Text("Centang folder yang ingin dihapus:", style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "File di input/ dan Downloads/AFFT/ TIDAK akan terhapus.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
+            AppDialog(
+                iconRes = R.drawable.ic_warning,
+                title = "Pilih Folder untuk Dibersihkan",
+                subtitle = "Centang folder workspace yang akan dihapus permanen.",
+                onDismiss = { showCleanConfirmDialog = false },
+                accent = MaterialTheme.colorScheme.error,
+                content = {
+                    Column(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 320.dp)
+                                .verticalScroll(rememberScrollState()),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                painterResource(R.drawable.ic_info),
+                                null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "File di input/ dan Downloads/AFFT/ tidak akan terhapus.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                fontFamily = LocalFontFamily.current,
+                            )
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
                         cleanOptions.forEach { (folder, selected) ->
-                            Row(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            cleanOptions = cleanOptions + (folder to !selected)
-                                        }.padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Checkbox(
-                                    checked = selected,
-                                    onCheckedChange = { checked ->
-                                        cleanOptions = cleanOptions + (folder to checked)
-                                    },
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(folder, fontFamily = LocalFontFamily.current)
-                            }
+                            CheckableOptionRow(
+                                label = folder,
+                                checked = selected,
+                                onCheckedChange = { checked ->
+                                    cleanOptions = cleanOptions + (folder to checked)
+                                },
+                            )
                         }
                     }
                 },
-                confirmButton = {
+                footer = {
+                    TextButton(onClick = { showCleanConfirmDialog = false }) {
+                        Text("Batal")
+                    }
                     Button(
                         onClick = {
                             showCleanConfirmDialog = false
@@ -1440,11 +1445,6 @@ fun HomeScreen(
                         Icon(painterResource(R.drawable.ic_delete), null, tint = LocalIconTint.current)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Hapus Folder Terpilih")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showCleanConfirmDialog = false }) {
-                        Text("Batal")
                     }
                 },
             )
