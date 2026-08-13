@@ -1442,7 +1442,7 @@ class AFFTService(
             // Cari binary dan file_contexts
             val makeExt4 = BinaryManager.getBinaryPath(context, "make_ext4fs")
             val mkfsErofs = BinaryManager.getBinaryPath(context, "mkfs.erofs")
-            val fileContextsPath = findFileContexts(File(getTempDir(), "contents"), dirName)
+            val fileContextsPath = findFileContexts(srcDir)
 
             updateProgress("Repacking filesystem...")
 
@@ -1659,16 +1659,14 @@ class AFFTService(
      * file_contexts diperlukan untuk menjaga hak akses (SELinux contexts)
      * saat me-repack dan mem-flash ke perangkat.
      */
-    private fun findFileContexts(
-        contentsDir: File,
-        dirName: String,
-    ): String? {
+    private fun findFileContexts(srcDir: File): String? {
         val candidates =
             listOf(
-                File(contentsDir, "file_contexts"),
-                File(contentsDir, "config/file_contexts"),
-                File(contentsDir.parentFile, "file_contexts"),
-                File(contentsDir, "$dirName/file_contexts"),
+                File(srcDir, "file_contexts"),
+                File(srcDir, "config/file_contexts"),
+                File(srcDir.parentFile, "file_contexts"),
+                File(srcDir.parentFile, "config/file_contexts"),
+                File(srcDir.parentFile?.parentFile, "file_contexts"),
             )
         for (f in candidates) {
             if (f.exists() && f.isFile) {

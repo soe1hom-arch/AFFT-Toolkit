@@ -19,6 +19,7 @@ import com.afft.app.ui.theme.LocalFontFamily
 import com.afft.app.ui.theme.LocalIconTint
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -31,8 +32,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.afft.app.R
@@ -42,14 +41,20 @@ import com.afft.app.ui.components.FileManagerPickerDialog
 import com.afft.app.ui.components.FilePickerCard
 import com.afft.app.ui.components.FileSourceSelectorDialog
 import com.afft.app.ui.components.LiveStatusCard
-import com.afft.app.ui.components.rememberDoneMessage
 import com.afft.app.ui.components.ProcessingOverlay
+import com.afft.app.ui.components.QuickLocation
+import com.afft.app.ui.components.RepackSourceCard
+import com.afft.app.ui.components.ScreenHeader
+import com.afft.app.ui.components.StepSectionTitle
 import com.afft.app.ui.components.WorkspaceFileBrowserDialog
 import com.afft.app.ui.components.dashboard.FirmwareInspector
 import com.afft.app.ui.components.dashboard.FirmwareMetadata
+import com.afft.app.ui.components.dashboard.StatusType
 import com.afft.app.ui.components.dashboard.emptyFirmwareMetadata
+import com.afft.app.ui.components.rememberDoneMessage
 import com.afft.app.util.formatFileSize
 import com.afft.app.util.partitionListSaver
+import com.afft.app.util.safTreeToFile
 import com.afft.app.util.stringSetSaver
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
@@ -104,20 +109,15 @@ fun SuperScreen(
     var showPartitionSelector by rememberSaveable { mutableStateOf(false) }
 
     // Refresh partition list after unpack
+    fun refreshPartitionsFrom(dir: File?) {
+        val parts = dir?.partitionEntries() ?: emptyList()
+        partitions = parts
+        selectedPartitions = parts.map { it.first }.toSet()
+    }
+
     LaunchedEffect(repackResult) {
         if (repackResult?.startsWith("Unpack") == true) {
-            val imgDir = File(afftService.getTempDir(), "img")
-            if (imgDir.exists()) {
-                val parts =
-                    imgDir
-                        .listFiles()
-                        ?.filter { it.isFile }
-                        ?.filter { it.name !in setOf("super.img", "super_raw.img") }
-                        ?.sortedBy { it.name }
-                        ?.map { it.nameWithoutExtension to it.length() } ?: emptyList()
-                partitions = parts
-                selectedPartitions = parts.map { it.first }.toSet()
-            }
+            refreshPartitionsFrom(File(afftService.getTempDir(), "img"))
         }
     }
 
@@ -130,20 +130,9 @@ fun SuperScreen(
             selectedFileName = latestFile.name
             selectedUri = null
         }
-        // Load existing partitions from temp/img/ (from previous sessions)
         val imgDir = File(afftService.getTempDir(), "img")
         if (imgDir.exists()) {
-            val parts =
-                imgDir
-                    .listFiles()
-                    ?.filter { it.isFile }
-                    ?.filter { it.name !in setOf("super.img", "super_raw.img") }
-                    ?.sortedBy { it.name }
-                    ?.map { it.nameWithoutExtension to it.length() } ?: emptyList()
-            if (parts.isNotEmpty()) {
-                partitions = parts
-                selectedPartitions = parts.map { it.first }.toSet()
-            }
+            refreshPartitionsFrom(imgDir)
         }
     }
 
@@ -181,6 +170,26 @@ fun SuperScreen(
             }
         }
 
+    // Sistem folder picker (SAF) untuk sumber repack dari folder bebas
+    val folderPicker =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocumentTree(),
+        ) { uri: Uri? ->
+            uri?.let {
+                val folder = safTreeToFile(context, it)
+                if (folder != null) {
+                    repackSourcePath = folder.absolutePath
+                    refreshPartitionsFrom(folder)
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Folder tidak didukung — gunakan folder di penyimpanan internal atau Browser Folder",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+        }
+
     // ── Source Selector Dialog ──
     if (showSourceSelector) {
         FileSourceSelectorDialog(
@@ -206,9 +215,20 @@ fun SuperScreen(
             onNavigate = { dir -> repackBrowseDir = dir },
             onFileSelected = { file ->
                 repackSourcePath = file.parentFile?.absolutePath ?: file.absolutePath
+                refreshPartitionsFrom(repackSourcePath?.let { File(it) })
                 showRepackSourceBrowser = false
             },
             onDismiss = { showRepackSourceBrowser = false },
+            selectFolderMode = true,
+            onFolderSelected = { folder ->
+                repackSourcePath = folder.absolutePath
+                refreshPartitionsFrom(folder)
+                showRepackSourceBrowser = false
+            },
+            quickLocations =
+                listOf(
+                    QuickLocation("Folder Kerja", R.drawable.ic_folder, afftService.getTempDir()),
+                ),
         )
     }
 
@@ -245,24 +265,32 @@ fun SuperScreen(
 
     Column(
         modifier =
-                        Modifier
+            Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
     ) {
-        Text(
-            "Super Image Operations",
-            style = MaterialTheme.typography.titleLarge,
-            fontFamily = LocalFontFamily.current,
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            "Unpack & repack super.img logical partitions",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        ScreenHeader(
+            iconRes = R.drawable.ic_super,
+            title = "Super Image Operations",
+            subtitle = "Unpack & repack super.img logical partitions",
+            status =
+                when {
+                    isRunning -> StatusType.RUNNING to "PROCESSING"
+                    doneMessage != null || repackResult != null -> StatusType.READY to "DONE"
+                    else -> null
+                },
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // ── Langkah 1: Pilih & Analisis ──
+        StepSectionTitle(
+            step = "01",
+            title = "Pilih & Analisis",
+            description = "Pilih super.img untuk melihat metadata partisi",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
 
         FilePickerCard(
             title = "Pilih super.img",
@@ -280,7 +308,7 @@ fun SuperScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Firmware inspector — metadata super dari Workspace (analisis header nyata)
         FirmwareInspector(
@@ -296,112 +324,99 @@ fun SuperScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // Custom source folder for repack
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painterResource(R.drawable.ic_folder_open),
-                    null,
-                    tint = LocalIconTint.current,
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Source folder",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        repackSourcePath ?: "temp/img/ (default)",
-                        fontFamily = LocalFontFamily.current,
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                TextButton(onClick = {
-                    repackBrowseDir = repackSourcePath?.let { File(it) }
-                        ?: afftService.getTempDir()
-                    showRepackSourceBrowser = true
-                }) { Text("Browse", fontSize = 11.sp) }
-                if (repackSourcePath != null) {
-                    IconButton(
-                        onClick = { repackSourcePath = null },
-                        modifier = Modifier.size(24.dp),
-                    ) {
-                        Icon(painterResource(R.drawable.ic_clear), null, tint = LocalIconTint.current)
+        // ── Langkah 2: Unpack ──
+        StepSectionTitle(
+            step = "02",
+            title = "Unpack",
+            description = "Ekstrak partisi logical ke temp/img/",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Button(
+            onClick = {
+                selectedInputFile?.let { file ->
+                    scope.launch {
+                        val result = afftService.unpackSuper(file)
+                        if (result.ok) {
+                            repackResult = "Unpack selesai. Partisi di temp/img/"
+                        }
+                    }
+                } ?: selectedUri?.let { uri ->
+                    scope.launch {
+                        val result = afftService.unpackSuper(uri)
+                        if (result.ok) {
+                            repackResult = "Unpack selesai. Partisi di temp/img/"
+                        }
                     }
                 }
-            }
+            },
+            enabled = (selectedUri != null || selectedInputFile != null) && !isRunning,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(painterResource(R.drawable.ic_unarchive), null, tint = LocalIconTint.current)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Unpack Super")
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(
-                onClick = {
-                    selectedInputFile?.let { file ->
-                        scope.launch {
-                            val result = afftService.unpackSuper(file)
-                            if (result.ok) {
-                                repackResult = "Unpack selesai. Partisi di temp/img/"
-                            }
-                        }
-                    } ?: selectedUri?.let { uri ->
-                        scope.launch {
-                            val result = afftService.unpackSuper(uri)
-                            if (result.ok) {
-                                repackResult = "Unpack selesai. Partisi di temp/img/"
-                            }
-                        }
-                    }
-                },
-                enabled = (selectedUri != null || selectedInputFile != null) && !isRunning,
-                modifier = Modifier.weight(1f),
-            ) {
-                Icon(painterResource(R.drawable.ic_unarchive), null, tint = LocalIconTint.current)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Unpack")
-            }
+        Spacer(modifier = Modifier.height(20.dp))
 
-            Button(
-                onClick = {
-                    if (partitions.isNotEmpty()) {
-                        showPartitionSelector = true
-                    } else {
-                        scope.launch {
-                            val result =
-                                afftService.repackSuper(
-                                    customSourceDir = repackSourcePath,
-                                )
-                            repackResult =
-                                if (result.ok) {
-                                    "Repack selesai: temp/repacked/super_repack.img"
-                                } else {
-                                    "Repack gagal"
-                                }
-                        }
+        // ── Langkah 3: Repack ──
+        StepSectionTitle(
+            step = "03",
+            title = "Repack",
+            description = "Pilih folder sumber partisi dari mana saja, lalu repack",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+
+        RepackSourceCard(
+            selectedPath = repackSourcePath,
+            defaultHint = "temp/img/ (default)",
+            onBrowse = {
+                repackBrowseDir = repackSourcePath?.let { File(it) } ?: afftService.getTempDir()
+                showRepackSourceBrowser = true
+            },
+            onPickSystemFolder = { folderPicker.launch(null) },
+            onClear = {
+                repackSourcePath = null
+                refreshPartitionsFrom(File(afftService.getTempDir(), "img"))
+            },
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Button(
+            onClick = {
+                if (partitions.isNotEmpty()) {
+                    showPartitionSelector = true
+                } else {
+                    scope.launch {
+                        val result =
+                            afftService.repackSuper(
+                                customSourceDir = repackSourcePath,
+                            )
+                        repackResult =
+                            if (result.ok) {
+                                "Repack selesai: temp/repacked/super_repack.img"
+                            } else {
+                                "Repack gagal"
+                            }
                     }
+                }
+            },
+            enabled = !isRunning,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(painterResource(R.drawable.ic_arrow_forward), null, tint = LocalIconTint.current)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                if (partitions.isNotEmpty()) {
+                    "Repack Super (${partitions.size} partisi)"
+                } else {
+                    "Repack Super"
                 },
-                enabled = !isRunning,
-                modifier = Modifier.weight(1f),
-            ) {
-                Icon(painterResource(R.drawable.ic_arrow_forward), null, tint = LocalIconTint.current)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Repack")
-            }
+            )
         }
 
         if (isRunning) {
@@ -510,3 +525,12 @@ fun SuperScreen(
         )
     }
 }
+
+/** Daftar partisi (.img) dalam sebuah folder, tanpa super.img/super_raw.img. */
+private fun File.partitionEntries(): List<Pair<String, Long>> =
+    listFiles()
+        ?.filter { it.isFile }
+        ?.filter { it.name !in setOf("super.img", "super_raw.img") }
+        ?.sortedBy { it.name }
+        ?.map { it.nameWithoutExtension to it.length() }
+        ?: emptyList()
