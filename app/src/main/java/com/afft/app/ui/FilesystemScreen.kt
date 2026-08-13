@@ -19,6 +19,7 @@ import com.afft.app.ui.theme.LocalFontFamily
 import com.afft.app.ui.theme.LocalIconTint
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -29,12 +30,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.afft.app.R
@@ -44,13 +42,19 @@ import com.afft.app.ui.components.FileManagerPickerDialog
 import com.afft.app.ui.components.FilePickerCard
 import com.afft.app.ui.components.FileSourceSelectorDialog
 import com.afft.app.ui.components.LiveStatusCard
-import com.afft.app.ui.components.rememberDoneMessage
 import com.afft.app.ui.components.ProcessingOverlay
+import com.afft.app.ui.components.QuickLocation
+import com.afft.app.ui.components.RepackSourceCard
+import com.afft.app.ui.components.ScreenHeader
+import com.afft.app.ui.components.StepSectionTitle
 import com.afft.app.ui.components.WorkspaceFileBrowserDialog
 import com.afft.app.ui.components.dashboard.FirmwareInspector
 import com.afft.app.ui.components.dashboard.FirmwareMetadata
+import com.afft.app.ui.components.dashboard.StatusType
 import com.afft.app.ui.components.dashboard.emptyFirmwareMetadata
+import com.afft.app.ui.components.rememberDoneMessage
 import com.afft.app.util.formatFileSize
+import com.afft.app.util.safTreeToFile
 import com.afft.app.util.stringListSaver
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
@@ -145,6 +149,26 @@ fun FilesystemScreen(
         availableDirs = afftService.listContentsDirs()
     }
 
+    // Sistem folder picker (SAF) untuk sumber repack dari folder bebas
+    val folderPicker =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocumentTree(),
+        ) { uri: Uri? ->
+            uri?.let {
+                val folder = safTreeToFile(context, it)
+                if (folder != null) {
+                    repackSourcePath = folder.absolutePath
+                    selectedDir = folder.name
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Folder tidak didukung — gunakan folder di penyimpanan internal atau Browser Folder",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+        }
+
     // ── Source Selector Dialog ──
     if (showSourceSelector) {
         FileSourceSelectorDialog(
@@ -159,6 +183,7 @@ fun FilesystemScreen(
                 showFileManagerPicker = true
             },
             onDismiss = { showSourceSelector = false },
+            targetLabel = "filesystem .img",
         )
     }
 
@@ -170,9 +195,20 @@ fun FilesystemScreen(
             onNavigate = { dir -> repackBrowseDir = dir },
             onFileSelected = { file ->
                 repackSourcePath = file.parentFile?.absolutePath ?: file.absolutePath
+                selectedDir = repackSourcePath?.let { File(it).name }
                 showRepackSourceBrowser = false
             },
             onDismiss = { showRepackSourceBrowser = false },
+            selectFolderMode = true,
+            onFolderSelected = { folder ->
+                repackSourcePath = folder.absolutePath
+                selectedDir = folder.name
+                showRepackSourceBrowser = false
+            },
+            quickLocations =
+                listOf(
+                    QuickLocation("Folder Kerja", R.drawable.ic_folder, afftService.getTempDir()),
+                ),
         )
     }
 
@@ -209,28 +245,32 @@ fun FilesystemScreen(
 
     Column(
         modifier =
-                        Modifier
+            Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
     ) {
-        Text(
-            "Filesystem Operations",
-            style = MaterialTheme.typography.titleLarge,
-            fontFamily = LocalFontFamily.current,
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            "Extract & repack EROFS/ext4 filesystem images",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        ScreenHeader(
+            iconRes = R.drawable.ic_filesystem,
+            title = "Filesystem Operations",
+            subtitle = "Extract & repack EROFS/ext4 filesystem images",
+            status =
+                when {
+                    isRunning -> StatusType.RUNNING to "PROCESSING"
+                    doneMessage != null -> StatusType.READY to "DONE"
+                    else -> null
+                },
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // Extract section
-        Text("Extract Filesystem", style = MaterialTheme.typography.titleSmall)
-        Spacer(modifier = Modifier.height(8.dp))
+        // ── Langkah 1: Pilih & Analisis ──
+        StepSectionTitle(
+            step = "01",
+            title = "Pilih & Analisis",
+            description = "Pilih image filesystem untuk melihat metadata",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
 
         FilePickerCard(
             title = "Pilih filesystem .img",
@@ -248,7 +288,7 @@ fun FilesystemScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Firmware inspector — metadata filesystem dari Workspace (analisis superblock)
         FirmwareInspector(
@@ -264,7 +304,15 @@ fun FilesystemScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // ── Langkah 2: Extract ──
+        StepSectionTitle(
+            step = "02",
+            title = "Extract Filesystem",
+            description = "Ekstrak konten image ke temp/contents/",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
 
         Button(
             onClick = {
@@ -292,19 +340,55 @@ fun FilesystemScreen(
             Text("Extract Filesystem")
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // Repack section
-        Text("Repack Filesystem", style = MaterialTheme.typography.titleSmall)
-        Spacer(modifier = Modifier.height(8.dp))
+        // ── Langkah 3: Repack ──
+        StepSectionTitle(
+            step = "03",
+            title = "Repack Filesystem",
+            description = "Pilih folder sumber dari mana saja, lalu repack",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
 
-        if (availableDirs.isEmpty()) {
-            Text(
-                "Belum ada konten untuk direpack. Extract filesystem terlebih dahulu.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
+        RepackSourceCard(
+            selectedPath = repackSourcePath,
+            defaultHint = "temp/contents/ (default)",
+            onBrowse = {
+                repackBrowseDir = repackSourcePath?.let { File(it) } ?: afftService.getTempDir()
+                showRepackSourceBrowser = true
+            },
+            onPickSystemFolder = { folderPicker.launch(null) },
+            onClear = {
+                repackSourcePath = null
+                selectedDir = null
+            },
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Preview folder sumber (kustom atau dari hasil extract)
+        val previewDir: File? =
+            repackSourcePath?.let { File(it) }
+                ?: selectedDir?.let { File(File(afftService.getTempDir(), "contents"), it) }
+        val previewFiles =
+            remember(previewDir) {
+                if (previewDir != null && previewDir.exists()) {
+                    previewDir.listFiles()?.sortedBy { it.name }?.take(10) ?: emptyList()
+                } else {
+                    emptyList()
+                }
+            }
+        val totalItems =
+            remember(previewDir) {
+                if (previewDir != null && previewDir.exists()) {
+                    previewDir.listFiles()?.size ?: 0
+                } else {
+                    0
+                }
+            }
+
+        if (repackSourcePath == null && availableDirs.isNotEmpty()) {
+            // Dropdown direktori hasil extract (hanya jika tanpa folder kustom)
             ExposedDropdownMenuBox(
                 expanded = expanded,
                 onExpandedChange = { expanded = !expanded },
@@ -334,8 +418,17 @@ fun FilesystemScreen(
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+        } else if (repackSourcePath == null && availableDirs.isEmpty()) {
+            Text(
+                "Belum ada konten untuk direpack. Extract filesystem terlebih dahulu, atau pilih folder sumber kustom di atas.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
-            // Custom source path
+        if (previewDir != null && previewDir.exists()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors =
@@ -343,136 +436,57 @@ fun FilesystemScreen(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     ),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        painterResource(R.drawable.ic_folder_open),
-                        null,
-                        tint = LocalIconTint.current,
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Text(
+                        "Isi folder ${previewDir.name}/ ($totalItems item)",
+                        fontSize = 11.sp,
+                        fontFamily = LocalFontFamily.current,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
+                    previewFiles.forEach { f ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(f.name, fontSize = 11.sp, fontFamily = LocalFontFamily.current)
+                            if (f.isFile) {
+                                Text(
+                                    formatFileSize(f.length()),
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    if (totalItems > 10) {
                         Text(
-                            "Source folder",
+                            "...dan ${totalItems - 10} lainnya",
                             fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Text(
-                            repackSourcePath ?: "temp/contents/ (default)",
-                            fontFamily = LocalFontFamily.current,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    TextButton(onClick = {
-                        repackBrowseDir = repackSourcePath?.let { File(it) }
-                            ?: afftService.getTempDir()
-                        showRepackSourceBrowser = true
-                    }) { Text("Browse", fontSize = 11.sp) }
-                    if (repackSourcePath != null) {
-                        IconButton(
-                            onClick = { repackSourcePath = null },
-                            modifier = Modifier.size(24.dp),
-                        ) {
-                            Icon(painterResource(R.drawable.ic_clear), null, tint = LocalIconTint.current)
-                        }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Show folder contents preview
-            val contentsDir = File(afftService.getTempDir(), "contents")
-            val previewFiles =
-                remember(selectedDir) {
-                    if (selectedDir != null) {
-                        val dir = File(contentsDir, selectedDir!!)
-                        if (dir.exists()) {
-                            val all = dir.listFiles()?.sortedBy { it.name } ?: emptyList()
-                            all.take(10) // preview first 10
-                        } else {
-                            emptyList()
-                        }
-                    } else {
-                        emptyList()
-                    }
-                }
-            val totalItems =
-                remember(selectedDir) {
-                    if (selectedDir != null) {
-                        val dir = File(contentsDir, selectedDir!!)
-                        if (dir.exists()) dir.listFiles()?.size ?: 0 else 0
-                    } else {
-                        0
-                    }
-                }
-
-            if (selectedDir != null) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors =
-                        CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        ),
-                ) {
-                    Column(modifier = Modifier.padding(8.dp)) {
-                        Text(
-                            "Isi folder $selectedDir/ ($totalItems item)",
-                            fontSize = 11.sp,
-                            fontFamily = LocalFontFamily.current,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        previewFiles.forEach { f ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Text(f.name, fontSize = 11.sp, fontFamily = LocalFontFamily.current)
-                                if (f.isFile) {
-                                    Text(
-                                        formatFileSize(f.length()),
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
-                        if (totalItems > 10) {
-                            Text(
-                                "...dan ${totalItems - 10} lainnya",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-
             Spacer(modifier = Modifier.height(8.dp))
+        }
 
-            Button(
-                onClick = {
-                    selectedDir?.let { dir ->
-                        scope.launch {
-                            val result =
-                                afftService.repackFilesystem(
-                                    dir,
-                                    customSourceDir = repackSourcePath,
-                                )
-                        }
-                    }
-                },
-                enabled = selectedDir != null && !isRunning,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(painterResource(R.drawable.ic_arrow_forward), null, tint = LocalIconTint.current)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Repack $selectedDir")
-            }
+        Button(
+            onClick = {
+                val dirName =
+                    selectedDir
+                        ?: repackSourcePath?.let { File(it).name }
+                        ?: return@Button
+                val source = repackSourcePath
+                scope.launch {
+                    afftService.repackFilesystem(dirName, customSourceDir = source)
+                }
+            },
+            enabled = (selectedDir != null || repackSourcePath != null) && !isRunning,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(painterResource(R.drawable.ic_arrow_forward), null, tint = LocalIconTint.current)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Repack ${selectedDir ?: "Filesystem"}")
         }
 
         if (isRunning) {

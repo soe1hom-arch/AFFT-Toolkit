@@ -19,6 +19,7 @@ import com.afft.app.ui.theme.LocalFontFamily
 import com.afft.app.ui.theme.LocalIconTint
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -27,12 +28,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.afft.app.R
@@ -43,13 +41,19 @@ import com.afft.app.ui.components.FileManagerPickerDialog
 import com.afft.app.ui.components.FilePickerCard
 import com.afft.app.ui.components.FileSourceSelectorDialog
 import com.afft.app.ui.components.LiveStatusCard
-import com.afft.app.ui.components.rememberDoneMessage
 import com.afft.app.ui.components.ProcessingOverlay
+import com.afft.app.ui.components.QuickLocation
+import com.afft.app.ui.components.RepackSourceCard
+import com.afft.app.ui.components.ScreenHeader
+import com.afft.app.ui.components.StepSectionTitle
 import com.afft.app.ui.components.WorkspaceFileBrowserDialog
 import com.afft.app.ui.components.dashboard.FirmwareInspector
 import com.afft.app.ui.components.dashboard.FirmwareMetadata
+import com.afft.app.ui.components.dashboard.StatusType
 import com.afft.app.ui.components.dashboard.emptyFirmwareMetadata
+import com.afft.app.ui.components.rememberDoneMessage
 import com.afft.app.util.formatFileSize
+import com.afft.app.util.safTreeToFile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -157,8 +161,28 @@ fun BootScreen(
                 showFileManagerPicker = true
             },
             onDismiss = { showSourceSelector = false },
+            targetLabel = "boot image",
         )
     }
+
+    // Sistem folder picker (SAF) untuk sumber repack dari folder bebas
+    val folderPicker =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocumentTree(),
+        ) { uri: Uri? ->
+            uri?.let {
+                val folder = safTreeToFile(context, it)
+                if (folder != null) {
+                    repackSourcePath = folder.absolutePath
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Folder tidak didukung — gunakan folder di penyimpanan internal atau Browser Folder",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+        }
 
     // ── Repack Source Browser Dialog ──
     if (showRepackSourceBrowser) {
@@ -171,6 +195,15 @@ fun BootScreen(
                 showRepackSourceBrowser = false
             },
             onDismiss = { showRepackSourceBrowser = false },
+            selectFolderMode = true,
+            onFolderSelected = { folder ->
+                repackSourcePath = folder.absolutePath
+                showRepackSourceBrowser = false
+            },
+            quickLocations =
+                listOf(
+                    QuickLocation("Folder Kerja", R.drawable.ic_folder, afftService.getTempDir()),
+                ),
         )
     }
 
@@ -212,27 +245,32 @@ fun BootScreen(
 
     Column(
         modifier =
-                        Modifier
+            Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
     ) {
-        Text(
-            "Boot Family Operations",
-            style = MaterialTheme.typography.titleLarge,
-            fontFamily = LocalFontFamily.current,
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            "Unpack & repack boot images (boot, vendor_boot, init_boot, dtbo, recovery, vbmeta)",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        ScreenHeader(
+            iconRes = R.drawable.ic_boot_image,
+            title = "Boot Family Operations",
+            subtitle = "Unpack & repack boot images (boot, vendor_boot, init_boot, dtbo, recovery, vbmeta)",
+            status =
+                when {
+                    isRunning -> StatusType.RUNNING to "PROCESSING"
+                    doneMessage != null -> StatusType.READY to "DONE"
+                    else -> null
+                },
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        Text("Pilih tipe boot:", style = MaterialTheme.typography.titleSmall)
-        Spacer(modifier = Modifier.height(8.dp))
+        // ── Langkah 1: Pilih Tipe & File ──
+        StepSectionTitle(
+            step = "01",
+            title = "Pilih Tipe & File",
+            description = "Pilih tipe boot lalu pilih image-nya",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
 
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
@@ -248,7 +286,7 @@ fun BootScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         FilePickerCard(
             title = "Pilih file boot image",
@@ -266,7 +304,7 @@ fun BootScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Firmware inspector — metadata boot dari Workspace (analisis header nyata)
         FirmwareInspector(
@@ -282,112 +320,93 @@ fun BootScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(
-                onClick = {
-                    selectedInputFile?.let { file ->
-                        selectedBootType?.let { type ->
-                            scope.launch {
-                                afftService.unpackBoot(file, type.fileName)
-                            }
-                        }
-                    } ?: selectedUri?.let { uri ->
-                        selectedBootType?.let { type ->
-                            scope.launch {
-                                afftService.unpackBoot(uri, type.fileName)
-                            }
-                        }
-                    }
-                },
-                enabled = (selectedUri != null || selectedInputFile != null) && selectedBootType != null && !isRunning,
-                modifier = Modifier.weight(1f),
-            ) {
-                Icon(painterResource(R.drawable.ic_unarchive), null, tint = LocalIconTint.current)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Unpack")
-            }
+        // ── Langkah 2: Unpack ──
+        StepSectionTitle(
+            step = "02",
+            title = "Unpack",
+            description = "Ekstrak boot image ke boot_out/<type>_out/",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
 
-            Button(
-                onClick = {
+        Button(
+            onClick = {
+                selectedInputFile?.let { file ->
                     selectedBootType?.let { type ->
                         scope.launch {
-                            afftService.repackBoot(type.fileName, customSourceDir = repackSourcePath)
+                            afftService.unpackBoot(file, type.fileName)
                         }
                     }
-                },
-                enabled = selectedBootType != null && !isRunning,
-                modifier = Modifier.weight(1f),
-            ) {
-                Icon(painterResource(R.drawable.ic_arrow_forward), null, tint = LocalIconTint.current)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Repack")
-            }
-        }
-
-        // Custom source card
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painterResource(R.drawable.ic_folder_open),
-                    null,
-                    tint = LocalIconTint.current,
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Source folder",
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        repackSourcePath ?: "boot_out/<type>_out/ (default)",
-                        fontFamily = LocalFontFamily.current,
-                        fontSize = 11.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                TextButton(onClick = {
-                    repackBrowseDir = repackSourcePath?.let { File(it) }
-                        ?: afftService.getTempDir()
-                    showRepackSourceBrowser = true
-                }) { Text("Browse", fontSize = 11.sp) }
-                if (repackSourcePath != null) {
-                    IconButton(
-                        onClick = { repackSourcePath = null },
-                        modifier = Modifier.size(24.dp),
-                    ) {
-                        Icon(painterResource(R.drawable.ic_clear), null, tint = LocalIconTint.current)
+                } ?: selectedUri?.let { uri ->
+                    selectedBootType?.let { type ->
+                        scope.launch {
+                            afftService.unpackBoot(uri, type.fileName)
+                        }
                     }
                 }
-            }
+            },
+            enabled = (selectedUri != null || selectedInputFile != null) && selectedBootType != null && !isRunning,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(painterResource(R.drawable.ic_unarchive), null, tint = LocalIconTint.current)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Unpack ${selectedBootType?.displayName ?: "Boot"}")
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // ── Langkah 3: Repack ──
+        StepSectionTitle(
+            step = "03",
+            title = "Repack",
+            description = "Pilih folder sumber dari mana saja, lalu repack",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+
+        RepackSourceCard(
+            selectedPath = repackSourcePath,
+            defaultHint = "boot_out/<type>_out/ (default)",
+            onBrowse = {
+                repackBrowseDir = repackSourcePath?.let { File(it) } ?: afftService.getTempDir()
+                showRepackSourceBrowser = true
+            },
+            onPickSystemFolder = { folderPicker.launch(null) },
+            onClear = { repackSourcePath = null },
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Button(
+            onClick = {
+                selectedBootType?.let { type ->
+                    scope.launch {
+                        afftService.repackBoot(type.fileName, customSourceDir = repackSourcePath)
+                    }
+                }
+            },
+            enabled = selectedBootType != null && !isRunning,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(painterResource(R.drawable.ic_arrow_forward), null, tint = LocalIconTint.current)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Repack ${selectedBootType?.displayName ?: "Boot"}")
         }
 
         // Preview extracted files if available
         val bootOutDir =
-            selectedBootType?.let {
-                File(afftService.getTempDir(), "boot_out/${it.fileName}_out")
-            }
+            repackSourcePath?.let { File(it) }
+                ?: selectedBootType?.let {
+                    File(afftService.getTempDir(), "boot_out/${it.fileName}_out")
+                }
         val bootFiles =
             remember(bootOutDir, selectedBootType) {
                 if (bootOutDir != null && bootOutDir.exists()) {
                     bootOutDir
                         .listFiles()
-                        ?.filter { it.isFile && it.name != selectedBootType?.fileName }
+                        ?.filter {
+                            it.isFile && it.name != selectedBootType?.fileName && it.name != "new-boot.img"
+                        }
                         ?.sortedBy { it.name } ?: emptyList()
                 } else {
                     emptyList()
@@ -405,7 +424,7 @@ fun BootScreen(
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(
-                        "Extracted files — ${bootOutDir?.name}",
+                        "Isi folder — ${bootOutDir?.name ?: ""}",
                         fontSize = 11.sp,
                         fontFamily = LocalFontFamily.current,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

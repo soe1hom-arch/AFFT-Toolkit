@@ -31,7 +31,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.afft.app.R
 import com.afft.app.service.AFFTService
@@ -39,13 +38,16 @@ import com.afft.app.ui.components.FileManagerPickerDialog
 import com.afft.app.ui.components.FilePickerCard
 import com.afft.app.ui.components.FileSourceSelectorDialog
 import com.afft.app.ui.components.LiveStatusCard
-import com.afft.app.ui.components.rememberDoneMessage
 import com.afft.app.ui.components.ProcessingOverlay
+import com.afft.app.ui.components.ScreenHeader
+import com.afft.app.ui.components.StepSectionTitle
+import com.afft.app.ui.components.WorkspaceFileBrowserDialog
 import com.afft.app.ui.components.dashboard.FirmwareInspector
 import com.afft.app.ui.components.dashboard.FirmwareMetadata
+import com.afft.app.ui.components.dashboard.StatusType
 import com.afft.app.ui.components.dashboard.emptyFirmwareMetadata
 import com.afft.app.core.coordinator.WorkspaceCoordinator
-import com.afft.app.ui.components.WorkspaceFileBrowserDialog
+import com.afft.app.ui.components.rememberDoneMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
@@ -162,6 +164,7 @@ fun PayloadScreen(
                 showFileManagerPicker = true
             },
             onDismiss = { showSourceSelector = false },
+            targetLabel = "payload.bin",
         )
     }
 
@@ -198,24 +201,32 @@ fun PayloadScreen(
 
     Column(
         modifier =
-                        Modifier
+            Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
     ) {
-        Text(
-            "Extract payload.bin",
-            style = MaterialTheme.typography.titleLarge,
-            fontFamily = LocalFontFamily.current,
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            "Extract OTA firmware payload.bin files",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        ScreenHeader(
+            iconRes = R.drawable.ic_payload,
+            title = "Extract payload.bin",
+            subtitle = "Extract OTA firmware payload.bin files",
+            status =
+                when {
+                    isRunning -> StatusType.RUNNING to "PROCESSING"
+                    doneMessage != null -> StatusType.READY to "DONE"
+                    else -> null
+                },
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // ── Langkah 1: Pilih & Analisis ──
+        StepSectionTitle(
+            step = "01",
+            title = "Pilih & Analisis",
+            description = "Pilih payload.bin untuk melihat metadata firmware",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
 
         FilePickerCard(
             title = "Pilih payload.bin",
@@ -241,7 +252,7 @@ fun PayloadScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Firmware inspector — data langsung dari Workspace (hasil analisis nyata)
         FirmwareInspector(
@@ -257,7 +268,15 @@ fun PayloadScreen(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // ── Langkah 2: Extract ──
+        StepSectionTitle(
+            step = "02",
+            title = "Extract",
+            description = "Ekstrak semua partisi dari payload.bin",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
 
         Button(
             onClick = {
