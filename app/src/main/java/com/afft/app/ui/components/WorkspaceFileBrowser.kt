@@ -71,27 +71,12 @@ fun WorkspaceFileBrowserDialog(
             (quickLocations + defaults).distinctBy { it.dir.absolutePath }
         }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Column {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontFamily = LocalFontFamily.current,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    currentDir.absolutePath,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = LocalFontFamily.current,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        },
-        text = {
+    AppDialog(
+        iconRes = R.drawable.ic_folder_open,
+        title = title,
+        subtitle = currentDir.absolutePath,
+        onDismiss = onDismiss,
+        content = {
             val files =
                 remember(currentDir) {
                     currentDir
@@ -280,27 +265,20 @@ fun WorkspaceFileBrowserDialog(
                 }
             }
         },
-        confirmButton = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                TextButton(onClick = onDismiss) {
-                    Text("Batal")
+        footer = {
+            TextButton(onClick = onDismiss) {
+                Text("Batal")
+            }
+            if (selectFolderMode) {
+                Button(
+                    onClick = { onFolderSelected?.invoke(currentDir) },
+                    enabled = currentDir.canRead(),
+                ) {
+                    Text("Pilih Folder Ini")
                 }
-                if (selectFolderMode) {
-                    Button(
-                        onClick = {
-                            onFolderSelected?.invoke(currentDir)
-                        },
-                        enabled = currentDir.canRead(),
-                    ) {
-                        Text("Pilih Folder Ini")
-                    }
-                } else {
-                    TextButton(onClick = onDismiss) {
-                        Text("Tutup")
-                    }
+            } else {
+                TextButton(onClick = onDismiss) {
+                    Text("Tutup")
                 }
             }
         },
@@ -422,7 +400,7 @@ fun FileSourceSelectorDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // ── Opsi sumber ──
-                SourceOptionCard(
+                DialogOptionCard(
                     iconRes = R.drawable.ic_storage,
                     title = "Penyimpanan (Sistem)",
                     description = "Dialog file Android — bebas akses semua folder di perangkat",
@@ -433,7 +411,7 @@ fun FileSourceSelectorDialog(
                     },
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                SourceOptionCard(
+                DialogOptionCard(
                     iconRes = R.drawable.ic_file_manager,
                     title = "File Manager",
                     description = "Browser file bawaan AFFT dengan pencarian & sortir",
@@ -443,7 +421,7 @@ fun FileSourceSelectorDialog(
                     },
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                SourceOptionCard(
+                DialogOptionCard(
                     iconRes = R.drawable.ic_folder_open,
                     title = "Folder Kerja",
                     description = "Langsung ke folder input/ di workspace AFFT",
@@ -469,84 +447,6 @@ fun FileSourceSelectorDialog(
     }
 }
 
-/** Kartu opsi sumber file di dalam [FileSourceSelectorDialog]. */
-@Composable
-private fun SourceOptionCard(
-    iconRes: Int,
-    title: String,
-    description: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    emphasized: Boolean = false,
-) {
-    Card(
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors =
-            CardDefaults.cardColors(
-                containerColor =
-                    if (emphasized) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant
-                    },
-            ),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Surface(
-                modifier = Modifier.size(40.dp),
-                shape = RoundedCornerShape(12.dp),
-                color =
-                    if (emphasized) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
-                    },
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        painterResource(iconRes),
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint =
-                            if (emphasized) {
-                                MaterialTheme.colorScheme.onPrimary
-                            } else {
-                                LocalIconTint.current
-                            },
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontFamily = LocalFontFamily.current,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontFamily = LocalFontFamily.current,
-                    lineHeight = 15.sp,
-                )
-            }
-            Icon(
-                painterResource(R.drawable.ic_chevron_right),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = LocalIconTint.current.copy(alpha = 0.7f),
-            )
-        }
-    }
-}
-
 /**
  * Dialog browser file yang bisa navigasi ke seluruh penyimpanan perangkat,
  * mirip dengan File Manager. Mulai dari /storage/emulated/0/.
@@ -561,27 +461,12 @@ fun DeviceFileBrowserDialog(
 ) {
     var currentDir by remember { mutableStateOf(initialDir) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Column {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontFamily = LocalFontFamily.current,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    currentDir.absolutePath,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = LocalFontFamily.current,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        },
-        text = {
+    AppDialog(
+        iconRes = R.drawable.ic_phone_android,
+        title = title,
+        subtitle = currentDir.absolutePath,
+        onDismiss = onDismiss,
+        content = {
             val dirs =
                 remember(currentDir) {
                     currentDir
@@ -730,7 +615,7 @@ fun DeviceFileBrowserDialog(
                 }
             }
         },
-        confirmButton = {
+        footer = {
             TextButton(onClick = onDismiss) {
                 Text("Tutup")
             }

@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -41,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.afft.app.R
 import com.afft.app.service.AFFTService
+import com.afft.app.ui.components.AppDialog
+import com.afft.app.ui.components.DialogOptionCard
 import com.afft.app.util.formatFileSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -643,24 +646,40 @@ fun FileManagerScreen(
 
     // Delete confirmation dialog
     if (showDeleteConfirm && selectedFiles.isNotEmpty()) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            icon = { Icon(painterResource(R.drawable.ic_warning), null, tint = LocalIconTint.current) },
-            title = { Text("Hapus Permanen?") },
-            text = {
-                Column {
-                    Text(
-                        "Tindakan ini akan menghapus file/folder berikut secara permanen " +
-                            "dan tidak bisa dikembalikan. Lanjutkan?",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+        AppDialog(
+            iconRes = R.drawable.ic_warning,
+            title = "Hapus Permanen?",
+            subtitle = "File/folder berikut akan dihapus permanen dan tidak bisa dikembalikan.",
+            onDismiss = { showDeleteConfirm = false },
+            accent = MaterialTheme.colorScheme.error,
+            content = {
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp)
+                            .verticalScroll(rememberScrollState()),
+                ) {
                     selectedFiles.take(10).forEach { f ->
-                        Text(
-                            "• ${f.name}",
-                            fontFamily = LocalFontFamily.current,
-                            fontSize = 12.sp,
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_insert_drive_file),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = LocalIconTint.current,
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                f.name,
+                                fontFamily = LocalFontFamily.current,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                     if (selectedFiles.size > 10) {
                         Text(
@@ -671,7 +690,10 @@ fun FileManagerScreen(
                     }
                 }
             },
-            confirmButton = {
+            footer = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Batal")
+                }
                 Button(
                     onClick = {
                         showDeleteConfirm = false
@@ -697,246 +719,199 @@ fun FileManagerScreen(
                         ),
                 ) { Text("Hapus") }
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Batal") }
-            },
         )
     }
 
     // Copy destination dialog
     if (showCopyDestDialog && selectedFiles.isNotEmpty()) {
-        AlertDialog(
-            onDismissRequest = { showCopyDestDialog = false },
-            title = { Text("Salin ke...") },
-            text = {
-                Column {
-                    Text("Pilih tujuan:", style = MaterialTheme.typography.bodySmall)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = {
-                            showCopyDestDialog = false
-                            scope.launch {
-                                operationInProgress = true
-                                var ok = 0
-                                for (f in selectedFiles) {
-                                    if (afftService.copyFileTo(f, downloadDir)) ok++
-                                }
-                                operationInProgress = false
-                                toastMessage = "Disalin ke Downloads: $ok file"
-                                refreshFiles(currentDir ?: inputDir)
+        AppDialog(
+            iconRes = R.drawable.ic_content_copy,
+            title = "Salin ke...",
+            subtitle = "Pilih tujuan penyalinan untuk ${selectedFiles.size} file terpilih.",
+            onDismiss = { showCopyDestDialog = false },
+            content = {
+                DialogOptionCard(
+                    iconRes = R.drawable.ic_download,
+                    title = "Downloads/AFFT",
+                    description = "Folder hasil ekspor di penyimpanan publik",
+                    emphasized = true,
+                    onClick = {
+                        showCopyDestDialog = false
+                        scope.launch {
+                            operationInProgress = true
+                            var ok = 0
+                            for (f in selectedFiles) {
+                                if (afftService.copyFileTo(f, downloadDir)) ok++
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.ic_download),
-                            null,
-                            tint = LocalIconTint.current,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Downloads/AFFT")
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Button(
-                        onClick = {
-                            showCopyDestDialog = false
-                            scope.launch {
-                                operationInProgress = true
-                                var ok = 0
-                                for (f in selectedFiles) {
-                                    if (afftService.copyFileTo(f, inputDir)) ok++
-                                }
-                                operationInProgress = false
-                                toastMessage = "Disalin ke input/: $ok file"
-                                refreshFiles(currentDir ?: inputDir)
+                            operationInProgress = false
+                            toastMessage = "Disalin ke Downloads: $ok file"
+                            refreshFiles(currentDir ?: inputDir)
+                        }
+                    },
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                DialogOptionCard(
+                    iconRes = R.drawable.ic_folder_open,
+                    title = "Input/ (workspace)",
+                    description = "Folder input di workspace AFFT",
+                    onClick = {
+                        showCopyDestDialog = false
+                        scope.launch {
+                            operationInProgress = true
+                            var ok = 0
+                            for (f in selectedFiles) {
+                                if (afftService.copyFileTo(f, inputDir)) ok++
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.ic_folder_open),
-                            null,
-                            tint = LocalIconTint.current,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Input/ (workspace)")
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    // Copy to current directory
-                    Button(
-                        onClick = {
-                            showCopyDestDialog = false
-                            scope.launch {
-                                operationInProgress = true
-                                var ok = 0
-                                for (f in selectedFiles) {
-                                    val dest = currentDir ?: inputDir
-                                    if (afftService.copyFileTo(f, dest)) ok++
-                                }
-                                operationInProgress = false
-                                toastMessage = "Disalin ke folder saat ini: $ok file"
-                                refreshFiles(currentDir ?: inputDir)
+                            operationInProgress = false
+                            toastMessage = "Disalin ke input/: $ok file"
+                            refreshFiles(currentDir ?: inputDir)
+                        }
+                    },
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                DialogOptionCard(
+                    iconRes = R.drawable.ic_folder,
+                    title = "Folder saat ini",
+                    description = currentDir?.absolutePath ?: inputDir.absolutePath,
+                    onClick = {
+                        showCopyDestDialog = false
+                        scope.launch {
+                            operationInProgress = true
+                            var ok = 0
+                            for (f in selectedFiles) {
+                                val dest = currentDir ?: inputDir
+                                if (afftService.copyFileTo(f, dest)) ok++
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.ic_folder),
-                            null,
-                            tint = LocalIconTint.current,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Folder saat ini")
-                    }
-                }
+                            operationInProgress = false
+                            toastMessage = "Disalin ke folder saat ini: $ok file"
+                            refreshFiles(currentDir ?: inputDir)
+                        }
+                    },
+                )
             },
-            confirmButton = {
-                TextButton(onClick = { showCopyDestDialog = false }) { Text("Batal") }
+            footer = {
+                TextButton(onClick = { showCopyDestDialog = false }) {
+                    Text("Batal")
+                }
             },
         )
     }
 
     // Move destination dialog
     if (showMoveDestDialog && selectedFiles.isNotEmpty()) {
-        AlertDialog(
-            onDismissRequest = { showMoveDestDialog = false },
-            title = { Text("Pindah ke...") },
-            text = {
-                Column {
-                    Text("Pilih tujuan:", style = MaterialTheme.typography.bodySmall)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = {
-                            showMoveDestDialog = false
-                            scope.launch {
-                                operationInProgress = true
-                                var ok = 0
-                                for (f in selectedFiles) {
-                                    if (afftService.moveFileTo(f, downloadDir)) ok++
-                                }
-                                operationInProgress = false
-                                toastMessage = "Dipindah ke Downloads: $ok file"
-                                refreshFiles(currentDir ?: inputDir)
+        AppDialog(
+            iconRes = R.drawable.ic_drive_file_move,
+            title = "Pindah ke...",
+            subtitle = "Pilih tujuan pemindahan untuk ${selectedFiles.size} file terpilih.",
+            onDismiss = { showMoveDestDialog = false },
+            content = {
+                DialogOptionCard(
+                    iconRes = R.drawable.ic_download,
+                    title = "Downloads/AFFT",
+                    description = "Folder hasil ekspor di penyimpanan publik",
+                    emphasized = true,
+                    onClick = {
+                        showMoveDestDialog = false
+                        scope.launch {
+                            operationInProgress = true
+                            var ok = 0
+                            for (f in selectedFiles) {
+                                if (afftService.moveFileTo(f, downloadDir)) ok++
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.ic_download),
-                            null,
-                            tint = LocalIconTint.current,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Downloads/AFFT")
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Button(
-                        onClick = {
-                            showMoveDestDialog = false
-                            scope.launch {
-                                operationInProgress = true
-                                var ok = 0
-                                for (f in selectedFiles) {
-                                    if (afftService.moveFileTo(f, inputDir)) ok++
-                                }
-                                operationInProgress = false
-                                toastMessage = "Dipindah ke input/: $ok file"
-                                refreshFiles(currentDir ?: inputDir)
+                            operationInProgress = false
+                            toastMessage = "Dipindah ke Downloads: $ok file"
+                            refreshFiles(currentDir ?: inputDir)
+                        }
+                    },
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                DialogOptionCard(
+                    iconRes = R.drawable.ic_folder_open,
+                    title = "Input/ (workspace)",
+                    description = "Folder input di workspace AFFT",
+                    onClick = {
+                        showMoveDestDialog = false
+                        scope.launch {
+                            operationInProgress = true
+                            var ok = 0
+                            for (f in selectedFiles) {
+                                if (afftService.moveFileTo(f, inputDir)) ok++
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.ic_folder_open),
-                            null,
-                            tint = LocalIconTint.current,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Input/ (workspace)")
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    // Move to current directory
-                    Button(
-                        onClick = {
-                            showMoveDestDialog = false
-                            scope.launch {
-                                operationInProgress = true
-                                var ok = 0
-                                for (f in selectedFiles) {
-                                    val dest = currentDir ?: inputDir
-                                    if (afftService.moveFileTo(f, dest)) ok++
-                                }
-                                operationInProgress = false
-                                toastMessage = "Dipindah ke folder saat ini: $ok file"
-                                refreshFiles(currentDir ?: inputDir)
+                            operationInProgress = false
+                            toastMessage = "Dipindah ke input/: $ok file"
+                            refreshFiles(currentDir ?: inputDir)
+                        }
+                    },
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                DialogOptionCard(
+                    iconRes = R.drawable.ic_folder,
+                    title = "Folder saat ini",
+                    description = currentDir?.absolutePath ?: inputDir.absolutePath,
+                    onClick = {
+                        showMoveDestDialog = false
+                        scope.launch {
+                            operationInProgress = true
+                            var ok = 0
+                            for (f in selectedFiles) {
+                                val dest = currentDir ?: inputDir
+                                if (afftService.moveFileTo(f, dest)) ok++
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.ic_folder),
-                            null,
-                            tint = LocalIconTint.current,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Folder saat ini")
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    // Move to Downloads root
-                    Button(
-                        onClick = {
-                            showMoveDestDialog = false
-                            scope.launch {
-                                operationInProgress = true
-                                val dest = File("/storage/emulated/0/Download")
-                                var ok = 0
-                                for (f in selectedFiles) {
-                                    if (afftService.moveFileTo(f, dest)) ok++
-                                }
-                                operationInProgress = false
-                                toastMessage = "Dipindah ke Downloads: $ok file"
-                                refreshFiles(currentDir ?: inputDir)
+                            operationInProgress = false
+                            toastMessage = "Dipindah ke folder saat ini: $ok file"
+                            refreshFiles(currentDir ?: inputDir)
+                        }
+                    },
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                DialogOptionCard(
+                    iconRes = R.drawable.ic_download,
+                    title = "Downloads/ (root)",
+                    description = "Folder Download utama di penyimpanan publik",
+                    onClick = {
+                        showMoveDestDialog = false
+                        scope.launch {
+                            operationInProgress = true
+                            val dest = File("/storage/emulated/0/Download")
+                            var ok = 0
+                            for (f in selectedFiles) {
+                                if (afftService.moveFileTo(f, dest)) ok++
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.ic_download),
-                            null,
-                            tint = LocalIconTint.current,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Downloads/ (root)")
-                    }
-                }
+                            operationInProgress = false
+                            toastMessage = "Dipindah ke Downloads: $ok file"
+                            refreshFiles(currentDir ?: inputDir)
+                        }
+                    },
+                )
             },
-            confirmButton = {
-                TextButton(onClick = { showMoveDestDialog = false }) { Text("Batal") }
+            footer = {
+                TextButton(onClick = { showMoveDestDialog = false }) {
+                    Text("Batal")
+                }
             },
         )
     }
 
     // Create folder dialog
     if (showCreateFolderDialog) {
-        AlertDialog(
-            onDismissRequest = { showCreateFolderDialog = false },
-            title = { Text("Buat Folder Baru") },
-            text = {
+        AppDialog(
+            iconRes = R.drawable.ic_create_new_folder,
+            title = "Buat Folder Baru",
+            subtitle = currentDir?.absolutePath ?: inputDir.absolutePath,
+            onDismiss = { showCreateFolderDialog = false },
+            content = {
                 OutlinedTextField(
                     value = newFolderName,
                     onValueChange = { newFolderName = it },
                     placeholder = { Text("Nama folder") },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             },
-            confirmButton = {
+            footer = {
+                TextButton(onClick = { showCreateFolderDialog = false }) {
+                    Text("Batal")
+                }
                 Button(
                     onClick = {
                         val name = newFolderName.trim()
@@ -957,34 +932,28 @@ fun FileManagerScreen(
                     },
                 ) { Text("Buat") }
             },
-            dismissButton = {
-                TextButton(onClick = { showCreateFolderDialog = false }) { Text("Batal") }
-            },
         )
     }
 
     // Rename dialog
     if (showRenameDialog && renameTarget != null) {
-        AlertDialog(
-            onDismissRequest = { showRenameDialog = false },
-            title = { Text("Ubah Nama") },
-            text = {
-                Column {
-                    Text(
-                        renameTarget?.name.orEmpty(),
-                        fontFamily = LocalFontFamily.current,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = renameText,
-                        onValueChange = { renameText = it },
-                        singleLine = true,
-                    )
-                }
+        AppDialog(
+            iconRes = R.drawable.ic_edit,
+            title = "Ubah Nama",
+            subtitle = "Ubah nama: ${renameTarget?.name.orEmpty()}",
+            onDismiss = { showRenameDialog = false },
+            content = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             },
-            confirmButton = {
+            footer = {
+                TextButton(onClick = { showRenameDialog = false }) {
+                    Text("Batal")
+                }
                 Button(
                     onClick = {
                         val target = renameTarget ?: return@Button
@@ -1006,9 +975,6 @@ fun FileManagerScreen(
                     },
                 ) { Text("Simpan") }
             },
-            dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) { Text("Batal") }
-            },
         )
     }
 
@@ -1027,10 +993,12 @@ fun FileManagerScreen(
                     target.length()
                 }
             }
-        AlertDialog(
-            onDismissRequest = { showPropertiesDialog = false },
-            title = { Text("Properti") },
-            text = {
+        AppDialog(
+            iconRes = R.drawable.ic_info,
+            title = "Properti",
+            subtitle = target.name,
+            onDismiss = { showPropertiesDialog = false },
+            content = {
                 Column {
                     DetailRow("Nama", target.name)
                     DetailRow("Jenis", if (target.isDirectory) "Folder" else "File")
@@ -1042,8 +1010,10 @@ fun FileManagerScreen(
                     )
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { showPropertiesDialog = false }) { Text("Tutup") }
+            footer = {
+                TextButton(onClick = { showPropertiesDialog = false }) {
+                    Text("Tutup")
+                }
             },
         )
     }

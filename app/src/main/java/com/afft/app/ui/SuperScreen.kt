@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.afft.app.R
 import com.afft.app.core.coordinator.WorkspaceCoordinator
 import com.afft.app.service.AFFTService
+import com.afft.app.ui.components.AppDialog
 import com.afft.app.ui.components.FileManagerPickerDialog
 import com.afft.app.ui.components.FilePickerCard
 import com.afft.app.ui.components.FileSourceSelectorDialog
@@ -436,18 +437,13 @@ fun SuperScreen(
 
     // Partition selector dialog
     if (showPartitionSelector && partitions.isNotEmpty()) {
-        AlertDialog(
-            onDismissRequest = { showPartitionSelector = false },
-            icon = { Icon(painterResource(R.drawable.ic_list), null, tint = LocalIconTint.current) },
-            title = { Text("Pilih Partisi untuk Repack") },
-            text = {
+        AppDialog(
+            iconRes = R.drawable.ic_list,
+            title = "Pilih Partisi untuk Repack",
+            subtitle = "${partitions.size} partisi ditemukan.",
+            onDismiss = { showPartitionSelector = false },
+            content = {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "${partitions.size} partisi ditemukan:",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -460,8 +456,13 @@ fun SuperScreen(
                         }) { Text("Clear", fontSize = 11.sp) }
                     }
 
-                    val scrollState = rememberScrollState()
-                    Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(scrollState)) {
+                    Column(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 300.dp)
+                                .verticalScroll(rememberScrollState()),
+                    ) {
                         partitions.forEach { (name, size) ->
                             Row(
                                 modifier =
@@ -499,7 +500,8 @@ fun SuperScreen(
                     }
                 }
             },
-            confirmButton = {
+            footer = {
+                TextButton(onClick = { showPartitionSelector = false }) { Text("Batal") }
                 Button(
                     onClick = {
                         showPartitionSelector = false
@@ -519,9 +521,6 @@ fun SuperScreen(
                     },
                     enabled = selectedPartitions.isNotEmpty(),
                 ) { Text("Repack (${selectedPartitions.size})") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPartitionSelector = false }) { Text("Batal") }
             },
         )
     }
