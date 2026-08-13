@@ -183,6 +183,7 @@ fun FilesystemScreen(
                 showFileManagerPicker = true
             },
             onDismiss = { showSourceSelector = false },
+            targetLabel = "filesystem .img",
         )
     }
 

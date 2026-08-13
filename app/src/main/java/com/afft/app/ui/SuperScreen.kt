@@ -204,6 +204,7 @@ fun SuperScreen(
                 showFileManagerPicker = true
             },
             onDismiss = { showSourceSelector = false },
+            targetLabel = "super.img",
         )
     }
 

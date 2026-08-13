@@ -26,6 +26,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.rememberScrollState
@@ -345,8 +346,9 @@ private fun QuickAccessChip(
 
 /**
  * Dialog awal untuk memilih sumber file:
- * 1. "Pilih dari Penyimpanan" → System file picker
- * 2. "Pilih dari Folder Kerja" → Workspace browser
+ * 1. "Penyimpanan (Sistem)" → System file picker
+ * 2. "File Manager" → browser file bawaan AFFT
+ * 3. "Folder Kerja" → Workspace browser
  */
 @Composable
 fun FileSourceSelectorDialog(
@@ -354,63 +356,195 @@ fun FileSourceSelectorDialog(
     onPickFromWorkspace: () -> Unit,
     onPickFromFileManager: () -> Unit,
     onDismiss: () -> Unit,
+    targetLabel: String? = null,
 ) {
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                "Pilih Sumber File",
-                fontFamily = LocalFontFamily.current,
-                fontWeight = FontWeight.Bold,
-            )
-        },
-        text = {
-            Column {
-                Button(
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                // ── Header ──
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(
+                        modifier = Modifier.size(44.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painterResource(R.drawable.ic_file_open),
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Pilih Sumber File",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontFamily = LocalFontFamily.current,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            if (targetLabel != null) {
+                                "Pilih $targetLabel dari salah satu lokasi berikut"
+                            } else {
+                                "Pilih dari salah satu lokasi berikut"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontFamily = LocalFontFamily.current,
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            painterResource(R.drawable.ic_close),
+                            contentDescription = "Tutup",
+                            tint = LocalIconTint.current,
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // ── Opsi sumber ──
+                SourceOptionCard(
+                    iconRes = R.drawable.ic_storage,
+                    title = "Penyimpanan (Sistem)",
+                    description = "Dialog file Android — bebas akses semua folder di perangkat",
+                    emphasized = true,
                     onClick = {
                         onDismiss()
                         onPickFromStorage()
                     },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    colors =
-                        ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                        ),
-                ) {
-                    Icon(painterResource(R.drawable.ic_storage), null, tint = LocalIconTint.current)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Pilih dari Penyimpanan")
-                }
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                SourceOptionCard(
+                    iconRes = R.drawable.ic_file_manager,
+                    title = "File Manager",
+                    description = "Browser file bawaan AFFT dengan pencarian & sortir",
                     onClick = {
                         onDismiss()
                         onPickFromFileManager()
                     },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                ) {
-                    Icon(painterResource(R.drawable.ic_folder_open), null, tint = LocalIconTint.current)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Pilih dari File Manager")
-                }
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                SourceOptionCard(
+                    iconRes = R.drawable.ic_folder_open,
+                    title = "Folder Kerja",
+                    description = "Langsung ke folder input/ di workspace AFFT",
                     onClick = {
                         onDismiss()
                         onPickFromWorkspace()
                     },
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // ── Footer ──
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
                 ) {
-                    Icon(painterResource(R.drawable.ic_folder_open), null, tint = LocalIconTint.current)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Pilih dari Folder Kerja")
+                    TextButton(onClick = onDismiss) {
+                        Text("Batal", fontFamily = LocalFontFamily.current)
+                    }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Batal") }
-        },
-    )
+        }
+    }
+}
+
+/** Kartu opsi sumber file di dalam [FileSourceSelectorDialog]. */
+@Composable
+private fun SourceOptionCard(
+    iconRes: Int,
+    title: String,
+    description: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    emphasized: Boolean = false,
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor =
+                    if (emphasized) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+            ),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = RoundedCornerShape(12.dp),
+                color =
+                    if (emphasized) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+                    },
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        painterResource(iconRes),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint =
+                            if (emphasized) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                LocalIconTint.current
+                            },
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontFamily = LocalFontFamily.current,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = LocalFontFamily.current,
+                    lineHeight = 15.sp,
+                )
+            }
+            Icon(
+                painterResource(R.drawable.ic_chevron_right),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = LocalIconTint.current.copy(alpha = 0.7f),
+            )
+        }
+    }
 }
 
 /**

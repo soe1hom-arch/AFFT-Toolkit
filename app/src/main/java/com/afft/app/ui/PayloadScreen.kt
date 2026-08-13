@@ -164,6 +164,7 @@ fun PayloadScreen(
                 showFileManagerPicker = true
             },
             onDismiss = { showSourceSelector = false },
+            targetLabel = "payload.bin",
         )
     }
 

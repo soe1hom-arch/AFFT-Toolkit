@@ -161,6 +161,7 @@ fun BootScreen(
                 showFileManagerPicker = true
             },
             onDismiss = { showSourceSelector = false },
+            targetLabel = "boot image",
         )
     }
 
