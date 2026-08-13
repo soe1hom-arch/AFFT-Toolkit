@@ -49,6 +49,13 @@
 - **Interactive metadata** — long values open a bottom sheet with copy/share/open-folder actions.
 - **AFFT Manager** — full file management: search, sort, multi-select, copy/move, delete, create folder, rename, properties, import.
 
+## ✨ What's New (v2.3.0 — unreleased)
+
+- **Tools Hub & Navigation** — Home is now a hub for every tool with sealed-class routes, a working Android back stack, and deep links such as `afft://tools/super`.
+- **Professional UI** — consistent headers, numbered step flows and unified dialogs across all tool screens and the file manager.
+- **Repack from any folder** — the repack source folder can be picked from anywhere on the device (built-in folder browser or the system SAF folder picker), not just the workspace.
+- **Service refactor** — log and storage concerns moved out of `AFFTService` (`LogManager`, `StorageManager`).
+
 See the full history in [CHANGELOG.md](CHANGELOG.md).
 
 ---
@@ -64,6 +71,9 @@ See the full history in [CHANGELOG.md](CHANGELOG.md).
 | **Firmware Analysis** | Project-based parsers for payload/boot/super/filesystem with health score, validation & recommendations. |
 | **Firmware Inspector** | Dashboard: current project, analysis result, health score, validation, operation history. |
 | **Workspace Projects** | Every operation belongs to a project with automatic folder structure and chronological history. |
+| **Tools Hub & Navigation** | Sealed-class routes, Android back stack, and `afft://` deep links between tools. |
+| **Repack Anywhere** | Pick the repack source folder from anywhere on the device (built-in browser or system SAF picker). |
+| **Professional UI** | Consistent headers, numbered steps and unified dialogs across all tool screens & the file manager. |
 | **Live Status** | Always-animated status card on Home and every operation screen. |
 | **Interactive Metadata** | Paths, hashes, fingerprints & any long value open a bottom sheet — copy, share, open folder. |
 | **Appearance** | 6 premium presets, custom accent & icon colors, dynamic color, custom fonts. |

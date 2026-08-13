@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased] — 2026-08-13
+
+### Added
+- **Navigasi baru (Tools Hub)** — sealed-class routes, back stack Android, deep link antar-tool (`afft://home`, `afft://files`, `afft://tools/{toolId}`)
+- **UI profesional** — header konsisten (ScreenHeader), alur bernomor (01/02/03), dialog seragam (AppDialog) di semua layar tool & File Manager
+- **Repack dari folder bebas** — folder sumber repack bisa dipilih dari mana saja via browser folder bawaan atau pemilih folder sistem (SAF); daftar partisi & `file_contexts` ikut di-refresh dari folder kustom
+- **Komponen UI reusable** — `AppDialog`, `DialogOptionCard`, `CheckableOptionRow`, `RepackSourceCard`, `SafTree`
+
+### Changed
+- **Service split** — ekstrak `LogManager` & `StorageManager` dari `AFFTService`
+- Semua dialog (hapus, salin, pindah, buat folder, rename, properti, partisi, browser file) memakai desain seragam
+
+### Testing
+- 132 unit test hijau (parsers, engine, workspace, coordinator, AFFTService, sparse, shell)
+
 ## [2.2.0] — 2026-08-08
 
 ### Added
