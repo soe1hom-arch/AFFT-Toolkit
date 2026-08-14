@@ -255,7 +255,7 @@ fun BootScreen(
         ScreenHeader(
             iconRes = R.drawable.ic_boot_image,
             title = "Boot Family Operations",
-            subtitle = "Unpack & repack boot images (boot, vendor_boot, init_boot, dtbo, recovery, vbmeta)",
+            subtitle = "Unpack & repack 7 boot images (boot, vendor_boot, init_boot, dtbo, recovery, vbmeta, vendor_kernel_boot)",
             status =
                 when {
                     isRunning -> StatusType.RUNNING to "PROCESSING"

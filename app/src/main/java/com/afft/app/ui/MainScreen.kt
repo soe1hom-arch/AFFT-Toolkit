@@ -25,6 +25,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -1218,6 +1219,69 @@ fun HomeScreen(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
+
+        // Resume banner — lanjutkan proyek terakhir yang punya titik lanjut
+        val resumeTarget =
+            remember(workspaceState.project) {
+                val active = workspace.engine.currentProject
+                if (active?.metadata?.lastTool != null) {
+                    active
+                } else {
+                    workspace.engine.recentProjects(5).firstOrNull { it.metadata.lastTool != null }
+                }
+            }
+        resumeTarget?.let { project ->
+            val toolLabel = FirmwareTool.fromId(project.metadata.lastTool)?.label
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                    ),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(
+                        modifier = Modifier.size(40.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painterResource(R.drawable.ic_arrow_forward),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Lanjutkan",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontFamily = LocalFontFamily.current,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            listOfNotNull(project.name, toolLabel, project.metadata.lastStep)
+                                .joinToString(" · "),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontFamily = LocalFontFamily.current,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Button(onClick = { onResumeProject(project.name) }) {
+                        Text("Buka")
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         // Recent projects — lanjutkan proyek yang tersimpan di disk
         val recentProjects = remember(workspaceState.project) { workspace.engine.recentProjects(5) }

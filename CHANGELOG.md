@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — 2026-08-13
+## [2.3.0] — 2026-08-14
 
 ### Added
 - **Navigasi baru (Tools Hub)** — sealed-class routes, back stack Android, deep link antar-tool (`afft://home`, `afft://files`, `afft://tools/{toolId}`)
@@ -8,6 +8,8 @@
 - **Repack dari folder bebas** — folder sumber repack bisa dipilih dari mana saja via browser folder bawaan atau pemilih folder sistem (SAF); daftar partisi & `file_contexts` ikut di-refresh dari folder kustom
 - **Riwayat operasi persisten** — history tersimpan per proyek (`history.json`); extract/repack payload/super/filesystem/boot kini tercatat di riwayat proyek; user bisa menghapus riwayat dari sheet Operation History
 - **Resume point** — `lastTool`/`lastFile`/`lastStep` tersimpan di metadata; Home menampilkan **Proyek Terbaru** untuk melanjutkan proyek dari tempat terakhir
+- **Resume banner (deteksi otomatis)** — Home otomatis mendeteksi proyek dengan titik lanjut dan menampilkan banner **Lanjutkan** untuk membuka tool terakhir
+- **Klaim fitur diselaraskan** — Payload = analyze & unpack (repack `payload.bin` tidak didukung), daftar 7 tipe boot dilengkapi di UI
 - **Komponen UI reusable** — `AppDialog`, `DialogOptionCard`, `CheckableOptionRow`, `RepackSourceCard`, `SafTree`
 
 ### Changed
@@ -15,7 +17,7 @@
 - Semua dialog (hapus, salin, pindah, buat folder, rename, properti, partisi, browser file) memakai desain seragam
 
 ### Testing
-- 132 unit test hijau (parsers, engine, workspace, coordinator, AFFTService, sparse, shell)
+- 135 unit test hijau (parsers, engine, workspace, coordinator, AFFTService, sparse, shell)
 
 ## [2.2.0] — 2026-08-08
 
