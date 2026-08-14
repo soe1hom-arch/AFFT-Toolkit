@@ -6,6 +6,8 @@
 - **Navigasi baru (Tools Hub)** — sealed-class routes, back stack Android, deep link antar-tool (`afft://home`, `afft://files`, `afft://tools/{toolId}`)
 - **UI profesional** — header konsisten (ScreenHeader), alur bernomor (01/02/03), dialog seragam (AppDialog) di semua layar tool & File Manager
 - **Repack dari folder bebas** — folder sumber repack bisa dipilih dari mana saja via browser folder bawaan atau pemilih folder sistem (SAF); daftar partisi & `file_contexts` ikut di-refresh dari folder kustom
+- **Riwayat operasi persisten** — history tersimpan per proyek (`history.json`); extract/repack payload/super/filesystem/boot kini tercatat di riwayat proyek; user bisa menghapus riwayat dari sheet Operation History
+- **Resume point** — `lastTool`/`lastFile`/`lastStep` tersimpan di metadata; Home menampilkan **Proyek Terbaru** untuk melanjutkan proyek dari tempat terakhir
 - **Komponen UI reusable** — `AppDialog`, `DialogOptionCard`, `CheckableOptionRow`, `RepackSourceCard`, `SafTree`
 
 ### Changed

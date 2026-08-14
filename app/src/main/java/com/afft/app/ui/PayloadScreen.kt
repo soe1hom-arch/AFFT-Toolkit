@@ -94,7 +94,9 @@ fun PayloadScreen(
 
     // Auto-detect file dari input/ saat screen dimuat (untuk menghindari copy ulang)
     LaunchedEffect(Unit) {
-        val latestFile = workspace.latestInputFor("payload", afftService.getInputDir())
+        val latestFile =
+            workspace.resumeInputFor("payload", afftService.getInputDir())
+                ?: workspace.latestInputFor("payload", afftService.getInputDir())
         if (latestFile != null) {
             selectedInputFilePath = latestFile.absolutePath
             selectedFileName = latestFile.name
@@ -284,7 +286,17 @@ fun PayloadScreen(
                     scope.launch {
                         try {
                             errorMessage = null
+                            val t0 = System.currentTimeMillis()
                             val result = afftService.extractPayload(file)
+                            workspace.recordOperation(
+                                title = "Extract Payload",
+                                ok = result.ok,
+                                durationMillis = System.currentTimeMillis() - t0,
+                                detail = result.message,
+                                resumeTool = "payload",
+                                resumeStep = if (result.ok) "unpacked" else null,
+                                resumeFile = selectedFileName,
+                            )
                             if (!result.ok) {
                                 errorMessage = result.message
                             }
@@ -295,7 +307,17 @@ fun PayloadScreen(
                     scope.launch {
                         try {
                             errorMessage = null
+                            val t0 = System.currentTimeMillis()
                             val result = afftService.extractPayload(uri)
+                            workspace.recordOperation(
+                                title = "Extract Payload",
+                                ok = result.ok,
+                                durationMillis = System.currentTimeMillis() - t0,
+                                detail = result.message,
+                                resumeTool = "payload",
+                                resumeStep = if (result.ok) "unpacked" else null,
+                                resumeFile = selectedFileName,
+                            )
                             if (!result.ok) {
                                 errorMessage = result.message
                             }

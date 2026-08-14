@@ -130,6 +130,7 @@ class WorkspaceCoordinator(
                         success = true,
                         detail = "$opType completed for ${file.name}",
                     )
+                    engine.updateResumePoint(toolIdFor(parserName), file.name, "analyzed")
                     analyzedFile = file
                     analyzedMetadata = result.metadata
                     _state.update {
@@ -194,6 +195,49 @@ class WorkspaceCoordinator(
     fun refresh() = refreshFromEngine()
 
     /**
+     * Mencatat hasil operasi firmware (extract/repack) ke riwayat proyek aktif
+     * dan memperbarui titik lanjut. Dipanggil dari layar tool setelah operasi.
+     */
+    fun recordOperation(
+        title: String,
+        ok: Boolean,
+        durationMillis: Long = 0L,
+        detail: String = "",
+        resumeTool: String? = null,
+        resumeStep: String? = null,
+        resumeFile: String? = null,
+    ) {
+        engine.recordOperation(title, durationMillis, ok, detail)
+        if (ok && resumeTool != null) {
+            engine.updateResumePoint(resumeTool, resumeFile, resumeStep ?: "done")
+        }
+        refreshFromEngine()
+    }
+
+    /** Menghapus seluruh riwayat operasi proyek aktif (memori + disk). */
+    fun clearHistory() {
+        engine.clearHistory()
+        refreshFromEngine()
+    }
+
+    /**
+     * File yang bisa dilanjutkan untuk tool tertentu: memakai [WorkspaceMetadata.lastTool]
+     * + [WorkspaceMetadata.lastFile] bila file masih ada di [inputDir].
+     */
+    suspend fun resumeInputFor(
+        toolId: String,
+        inputDir: File,
+    ): File? =
+        withContext(Dispatchers.IO) {
+            val metadata = engine.currentProject?.metadata ?: return@withContext null
+            if (metadata.lastTool != toolId || metadata.lastFile.isNullOrBlank()) {
+                return@withContext null
+            }
+            val file = File(inputDir, metadata.lastFile)
+            if (file.isFile) file else null
+        }
+
+    /**
      * Mencari file input/ terbaru yang benar-benar cocok dengan parser
      * tertentu (berdasarkan magic, bukan ekstensi). Dipakai auto-detect
      * per layar agar Payload/Boot/Super/Filesystem tidak saling membaca
@@ -249,6 +293,12 @@ class WorkspaceCoordinator(
             "payload" -> "Payload"
             "filesystem" -> "Filesystem"
             else -> "Firmware"
+        }
+
+    private fun toolIdFor(parserName: String): String =
+        when (parserName) {
+            "boot", "super", "payload", "filesystem" -> parserName
+            else -> "firmware"
         }
 
     /** Memetakan kegagalan analisis ke FirmwareMetadata error (UI). */

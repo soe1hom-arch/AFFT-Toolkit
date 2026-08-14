@@ -40,6 +40,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -130,6 +131,13 @@ fun MainScreen(
             } else {
                 listOf(AppScreen.Home, target)
             }
+    }
+
+    fun resumeProject(name: String) {
+        workspace.engine.openProject(name)
+        val tool =
+            FirmwareTool.fromId(workspace.engine.currentProject?.metadata?.lastTool)
+        if (tool != null) openDeepLink(AppScreen.Tools(tool)) else resetToHome()
     }
 
     BackHandler(enabled = backStack.size > 1) {
@@ -499,6 +507,7 @@ fun MainScreen(
                                 progressMessage = progressMessage,
                                 onOpenFolder = { navigate(AppScreen.Files) },
                                 onOpenTool = { tool -> openDeepLink(AppScreen.Tools(tool)) },
+                                onResumeProject = { name -> resumeProject(name) },
                             )
                         is AppScreen.Tools ->
                             ToolsHub(
@@ -940,6 +949,7 @@ fun HomeScreen(
     progressMessage: String = "",
     onOpenFolder: () -> Unit = {},
     onOpenTool: (FirmwareTool) -> Unit = {},
+    onResumeProject: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = remember { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
@@ -1209,6 +1219,79 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Recent projects — lanjutkan proyek yang tersimpan di disk
+        val recentProjects = remember(workspaceState.project) { workspace.engine.recentProjects(5) }
+        if (recentProjects.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    ),
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                    Text(
+                        "Proyek Terbaru",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontFamily = LocalFontFamily.current,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    recentProjects.forEach { project ->
+                        val resumeLabel =
+                            listOfNotNull(
+                                project.metadata.firmwareType,
+                                project.metadata.lastTool?.let { "Lanjut: $it" },
+                                project.metadata.lastStep,
+                            ).joinToString(" · ")
+                        Row(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onResumeProject(project.name) }
+                                    .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_folder),
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = LocalIconTint.current,
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    project.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontFamily = LocalFontFamily.current,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (resumeLabel.isNotBlank()) {
+                                    Text(
+                                        resumeLabel,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontFamily = LocalFontFamily.current,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                            Icon(
+                                painterResource(R.drawable.ic_chevron_right),
+                                contentDescription = "Buka proyek",
+                                modifier = Modifier.size(18.dp),
+                                tint = LocalIconTint.current,
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         // Shortcut ke tiap tool — deep link antar-tool dari Home
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1454,6 +1537,7 @@ fun HomeScreen(
             HistoryBottomSheet(
                 operations = workspaceState.history,
                 onDismiss = { showHistorySheet = false },
+                onClearHistory = { workspace.clearHistory() },
             )
         }
 
@@ -1592,6 +1676,7 @@ private fun ActivityCount(
 private fun HistoryBottomSheet(
     operations: List<WorkspaceOperation>,
     onDismiss: () -> Unit,
+    onClearHistory: (() -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val failedCount = operations.count { it.result == OperationResult.FAILED }
@@ -1644,6 +1729,27 @@ private fun HistoryBottomSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontFamily = LocalFontFamily.current,
             )
+            if (operations.isNotEmpty() && onClearHistory != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onClearHistory) {
+                        Icon(
+                            painterResource(R.drawable.ic_delete),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            "Hapus Riwayat",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(16.dp))
             if (operations.isEmpty()) {
                 Text(

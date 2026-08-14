@@ -54,6 +54,7 @@
 - **Tools Hub & Navigation** — Home is now a hub for every tool with sealed-class routes, a working Android back stack, and deep links such as `afft://tools/super`.
 - **Professional UI** — consistent headers, numbered step flows and unified dialogs across all tool screens and the file manager.
 - **Repack from any folder** — the repack source folder can be picked from anywhere on the device (built-in folder browser or the system SAF folder picker), not just the workspace.
+- **Persistent history & resume** — extract/repack operations are recorded per project, history survives restarts (and can be cleared), and Home shows Recent Projects with a resume point to continue where you left off.
 - **Service refactor** — log and storage concerns moved out of `AFFTService` (`LogManager`, `StorageManager`).
 
 See the full history in [CHANGELOG.md](CHANGELOG.md).

@@ -149,7 +149,8 @@ class WorkspaceCoordinatorTest {
 
         assertNotNull(resumed)
         assertEquals("resume", second.state.value.project?.name)
-        assertEquals(1, second.engine.history().count { it.type == "Analysis" })
+        // History kini di-persist ke disk: 1 dari sesi sebelumnya + 1 analisis ulang.
+        assertEquals(2, second.engine.history().count { it.type == "Analysis" })
         assertEquals(1, second.engine.projects().size) // tidak membuat proyek ganda
     }
 

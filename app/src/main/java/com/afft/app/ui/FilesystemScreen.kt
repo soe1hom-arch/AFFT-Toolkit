@@ -104,7 +104,9 @@ fun FilesystemScreen(
 
     // Auto-detect file dari input/ saat screen dimuat (untuk menghindari copy ulang)
     LaunchedEffect(Unit) {
-        val latestFile = workspace.latestInputFor("filesystem", afftService.getInputDir())
+        val latestFile =
+            workspace.resumeInputFor("filesystem", afftService.getInputDir())
+                ?: workspace.latestInputFor("filesystem", afftService.getInputDir())
         if (latestFile != null) {
             selectedInputFilePath = latestFile.absolutePath
             selectedFileName = latestFile.name
@@ -318,14 +320,34 @@ fun FilesystemScreen(
             onClick = {
                 selectedInputFile?.let { file ->
                     scope.launch {
+                        val t0 = System.currentTimeMillis()
                         val result = afftService.extractFilesystem(file)
+                        workspace.recordOperation(
+                            title = "Extract Filesystem",
+                            ok = result.ok,
+                            durationMillis = System.currentTimeMillis() - t0,
+                            detail = result.message,
+                            resumeTool = "filesystem",
+                            resumeStep = if (result.ok) "unpacked" else null,
+                            resumeFile = selectedFileName,
+                        )
                         if (result.ok) {
                             availableDirs = afftService.listContentsDirs()
                         }
                     }
                 } ?: selectedUri?.let { uri ->
                     scope.launch {
+                        val t0 = System.currentTimeMillis()
                         val result = afftService.extractFilesystem(uri)
+                        workspace.recordOperation(
+                            title = "Extract Filesystem",
+                            ok = result.ok,
+                            durationMillis = System.currentTimeMillis() - t0,
+                            detail = result.message,
+                            resumeTool = "filesystem",
+                            resumeStep = if (result.ok) "unpacked" else null,
+                            resumeFile = selectedFileName,
+                        )
                         if (result.ok) {
                             availableDirs = afftService.listContentsDirs()
                         }
@@ -478,7 +500,18 @@ fun FilesystemScreen(
                         ?: return@Button
                 val source = repackSourcePath
                 scope.launch {
-                    afftService.repackFilesystem(dirName, customSourceDir = source)
+                    val t0 = System.currentTimeMillis()
+                    val result =
+                        afftService.repackFilesystem(dirName, customSourceDir = source)
+                    workspace.recordOperation(
+                        title = "Repack Filesystem",
+                        ok = result.ok,
+                        durationMillis = System.currentTimeMillis() - t0,
+                        detail = result.message,
+                        resumeTool = "filesystem",
+                        resumeStep = if (result.ok) "repacked" else null,
+                        resumeFile = selectedFileName,
+                    )
                 }
             },
             enabled = (selectedDir != null || repackSourcePath != null) && !isRunning,

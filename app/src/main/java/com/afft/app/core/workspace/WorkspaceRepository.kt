@@ -66,6 +66,9 @@ class WorkspaceRepository {
             field(sb, "device", m.device)
             field(sb, "codename", m.codename)
             field(sb, "firmwareType", m.firmwareType)
+            field(sb, "lastTool", m.lastTool)
+            field(sb, "lastFile", m.lastFile)
+            field(sb, "lastStep", m.lastStep)
             field(sb, "workspaceVersion", m.workspaceVersion.toLong())
             field(sb, "status", m.status.name)
             field(sb, "healthScore", m.healthScore?.toLong())
@@ -104,6 +107,9 @@ class WorkspaceRepository {
                 device = values["device"]?.takeIf { it.isNotEmpty() },
                 codename = values["codename"]?.takeIf { it.isNotEmpty() },
                 firmwareType = values["firmwareType"]?.takeIf { it.isNotEmpty() },
+                lastTool = values["lastTool"]?.takeIf { it.isNotEmpty() },
+                lastFile = values["lastFile"]?.takeIf { it.isNotEmpty() },
+                lastStep = values["lastStep"]?.takeIf { it.isNotEmpty() },
                 workspaceVersion = workspaceVersion,
                 status = status,
                 healthScore = healthScore,

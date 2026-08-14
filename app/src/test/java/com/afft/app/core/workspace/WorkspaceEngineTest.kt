@@ -112,6 +112,70 @@ class WorkspaceEngineTest {
     }
 
     @Test
+    fun history_persistsAcrossReload() {
+        val root = File(tmp.root, "workspace")
+        val first = WorkspaceEngine(WorkspaceManager(root))
+        first.createProject("Persist Hist").getOrThrow()
+        first.recordOperation("Extract Payload", durationMillis = 1200, success = true, detail = "payload.bin")
+        first.recordOperation("Repack Super", durationMillis = 800, success = false, detail = "no images")
+
+        // Reload dari disk dengan engine baru (simulasi restart aplikasi).
+        val second = WorkspaceEngine(WorkspaceManager(root))
+        second.openProject("Persist Hist").getOrThrow()
+
+        val history = second.history()
+        assertEquals(2, history.size)
+        assertEquals("Repack Super", history[0].type)
+        assertEquals(OperationResult.FAILED, history[0].result)
+        assertEquals(800L, history[0].durationMillis)
+        assertEquals("no images", history[0].detail)
+        assertEquals("Extract Payload", history[1].type)
+        assertEquals(1200L, history[1].durationMillis)
+        assertTrue(File(root, "Persist Hist/history.json").exists())
+    }
+
+    @Test
+    fun clearHistory_removesMemoryAndDisk() {
+        val root = File(tmp.root, "workspace")
+        val engine = WorkspaceEngine(WorkspaceManager(root))
+        engine.createProject("Clear Hist").getOrThrow()
+        engine.recordOperation("Extract Payload", durationMillis = 10, success = true)
+        assertEquals(1, engine.history().size)
+        assertTrue(File(root, "Clear Hist/history.json").exists())
+
+        val result = engine.clearHistory()
+
+        assertTrue(result.isSuccess)
+        assertTrue(engine.history().isEmpty())
+        assertFalse(File(root, "Clear Hist/history.json").exists())
+
+        // Reload engine baru — riwayat tetap kosong.
+        val reloaded = WorkspaceEngine(WorkspaceManager(root))
+        reloaded.openProject("Clear Hist").getOrThrow()
+        assertTrue(reloaded.history().isEmpty())
+    }
+
+    @Test
+    fun updateResumePoint_persistsToMetadata() {
+        val root = File(tmp.root, "workspace")
+        val engine = WorkspaceEngine(WorkspaceManager(root))
+        engine.createProject("Resume Point").getOrThrow()
+
+        engine.updateResumePoint(tool = "super", file = "super.img", step = "repacked").getOrThrow()
+
+        assertEquals("super", engine.currentProject?.metadata?.lastTool)
+        assertEquals("super.img", engine.currentProject?.metadata?.lastFile)
+        assertEquals("repacked", engine.currentProject?.metadata?.lastStep)
+
+        // Reload — titik lanjut tetap ada.
+        val reloaded = WorkspaceEngine(WorkspaceManager(root))
+        reloaded.openProject("Resume Point").getOrThrow()
+        assertEquals("super", reloaded.currentProject?.metadata?.lastTool)
+        assertEquals("super.img", reloaded.currentProject?.metadata?.lastFile)
+        assertEquals("repacked", reloaded.currentProject?.metadata?.lastStep)
+    }
+
+    @Test
     fun beginFinishOperation_updatesStateAndRecords() {
         val engine = newEngine()
         engine.createProject("Ops").getOrThrow()
