@@ -16,6 +16,8 @@
 
 package com.afft.app.core.workspace
 
+import java.io.File
+
 import com.afft.app.ui.components.dashboard.StatusType
 
 /** Token operasi yang sedang berjalan. */
@@ -75,6 +77,7 @@ class WorkspaceEngine(
             manager.createProject(name).onSuccess { project ->
                 currentProject = project
                 state = WorkspaceState.READY
+                loadHistoryFromDisk()
                 emit(WorkspaceEventType.PROJECT_CREATED, project.name)
             }
         }
@@ -84,6 +87,7 @@ class WorkspaceEngine(
             manager.openProject(name).onSuccess { project ->
                 currentProject = project
                 state = WorkspaceState.READY
+                loadHistoryFromDisk()
                 emit(WorkspaceEventType.PROJECT_OPENED, project.name)
             }
         }
@@ -155,6 +159,7 @@ class WorkspaceEngine(
                     detail = detail,
                 )
             history.add(operation)
+            persistHistory()
             state = if (success) WorkspaceState.COMPLETED else WorkspaceState.FAILED
             emitFinishEvent(handle.type, success, operation)
             operation
@@ -172,10 +177,39 @@ class WorkspaceEngine(
                     detail = detail,
                 )
             history.add(operation)
+            persistHistory()
             state = if (success) WorkspaceState.COMPLETED else WorkspaceState.FAILED
             emitFinishEvent(type, success, operation)
         }
     }
+
+    /**
+     * Menghapus seluruh riwayat operasi proyek aktif (memori + disk).
+     * Dipanggil dari UI saat user ingin mereset riwayat.
+     */
+    fun clearHistory(): Result<Unit> =
+        synchronized(lock) {
+            history.clear()
+            val file = historyFile()
+            runCatching {
+                file?.delete()
+            }.map { Unit }
+        }
+
+    /** Memperbarui titik lanjut (tool/file/langkah terakhir) di metadata proyek. */
+    fun updateResumePoint(
+        tool: String,
+        file: String?,
+        step: String,
+    ): Result<WorkspaceProject> =
+        updateProject { metadata ->
+            metadata.copy(
+                lastTool = tool,
+                lastFile = file,
+                lastStep = step,
+                lastOpenedAt = System.currentTimeMillis(),
+            )
+        }
 
     // ---------- akses data ----------
 
@@ -196,6 +230,24 @@ class WorkspaceEngine(
         synchronized(lock) {
             listeners.add(listener)
         }
+    }
+
+    // ---------- persistensi riwayat ----------
+
+    private fun historyFile(): File? =
+        currentProject?.rootDir?.let { File(it, WorkspaceHistoryStore.FILE_NAME) }
+
+    private fun persistHistory() {
+        val file = historyFile() ?: return
+        WorkspaceHistoryStore.save(file.parentFile, history.all())
+    }
+
+    private fun loadHistoryFromDisk() {
+        val root = currentProject?.rootDir ?: return
+        history.clear()
+        // Store menyimpan terbaru di depan; tambahkan dari paling lama agar
+        // urutan (terbaru di depan) tetap benar setelah dimuat.
+        WorkspaceHistoryStore.load(root).reversed().forEach { history.add(it) }
     }
 
     // ---------- internal ----------

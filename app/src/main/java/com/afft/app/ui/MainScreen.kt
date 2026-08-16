@@ -25,6 +25,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,6 +41,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -130,6 +132,13 @@ fun MainScreen(
             } else {
                 listOf(AppScreen.Home, target)
             }
+    }
+
+    fun resumeProject(name: String) {
+        workspace.engine.openProject(name)
+        val tool =
+            FirmwareTool.fromId(workspace.engine.currentProject?.metadata?.lastTool)
+        if (tool != null) openDeepLink(AppScreen.Tools(tool)) else resetToHome()
     }
 
     BackHandler(enabled = backStack.size > 1) {
@@ -499,6 +508,7 @@ fun MainScreen(
                                 progressMessage = progressMessage,
                                 onOpenFolder = { navigate(AppScreen.Files) },
                                 onOpenTool = { tool -> openDeepLink(AppScreen.Tools(tool)) },
+                                onResumeProject = { name -> resumeProject(name) },
                             )
                         is AppScreen.Tools ->
                             ToolsHub(
@@ -940,6 +950,7 @@ fun HomeScreen(
     progressMessage: String = "",
     onOpenFolder: () -> Unit = {},
     onOpenTool: (FirmwareTool) -> Unit = {},
+    onResumeProject: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = remember { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
@@ -1209,6 +1220,142 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Resume banner — lanjutkan proyek terakhir yang punya titik lanjut
+        val resumeTarget =
+            remember(workspaceState.project) {
+                val active = workspace.engine.currentProject
+                if (active?.metadata?.lastTool != null) {
+                    active
+                } else {
+                    workspace.engine.recentProjects(5).firstOrNull { it.metadata.lastTool != null }
+                }
+            }
+        resumeTarget?.let { project ->
+            val toolLabel = FirmwareTool.fromId(project.metadata.lastTool)?.label
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                    ),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(
+                        modifier = Modifier.size(40.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painterResource(R.drawable.ic_arrow_forward),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Lanjutkan",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontFamily = LocalFontFamily.current,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            listOfNotNull(project.name, toolLabel, project.metadata.lastStep)
+                                .joinToString(" · "),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontFamily = LocalFontFamily.current,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Button(onClick = { onResumeProject(project.name) }) {
+                        Text("Buka")
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // Recent projects — lanjutkan proyek yang tersimpan di disk
+        val recentProjects = remember(workspaceState.project) { workspace.engine.recentProjects(5) }
+        if (recentProjects.isNotEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    ),
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                    Text(
+                        "Proyek Terbaru",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontFamily = LocalFontFamily.current,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    recentProjects.forEach { project ->
+                        val resumeLabel =
+                            listOfNotNull(
+                                project.metadata.firmwareType,
+                                project.metadata.lastTool?.let { "Lanjut: $it" },
+                                project.metadata.lastStep,
+                            ).joinToString(" · ")
+                        Row(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onResumeProject(project.name) }
+                                    .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                painterResource(R.drawable.ic_folder),
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = LocalIconTint.current,
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    project.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontFamily = LocalFontFamily.current,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (resumeLabel.isNotBlank()) {
+                                    Text(
+                                        resumeLabel,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontFamily = LocalFontFamily.current,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                            Icon(
+                                painterResource(R.drawable.ic_chevron_right),
+                                contentDescription = "Buka proyek",
+                                modifier = Modifier.size(18.dp),
+                                tint = LocalIconTint.current,
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         // Shortcut ke tiap tool — deep link antar-tool dari Home
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1454,6 +1601,7 @@ fun HomeScreen(
             HistoryBottomSheet(
                 operations = workspaceState.history,
                 onDismiss = { showHistorySheet = false },
+                onClearHistory = { workspace.clearHistory() },
             )
         }
 
@@ -1592,6 +1740,7 @@ private fun ActivityCount(
 private fun HistoryBottomSheet(
     operations: List<WorkspaceOperation>,
     onDismiss: () -> Unit,
+    onClearHistory: (() -> Unit)? = null,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val failedCount = operations.count { it.result == OperationResult.FAILED }
@@ -1644,6 +1793,27 @@ private fun HistoryBottomSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontFamily = LocalFontFamily.current,
             )
+            if (operations.isNotEmpty() && onClearHistory != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = onClearHistory) {
+                        Icon(
+                            painterResource(R.drawable.ic_delete),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            "Hapus Riwayat",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                        )
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(16.dp))
             if (operations.isEmpty()) {
                 Text(

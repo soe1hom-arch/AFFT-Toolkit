@@ -125,7 +125,9 @@ fun SuperScreen(
     // Auto-detect file dari input/ saat screen dimuat (untuk menghindari copy ulang)
     // Load latest input file AND existing partitions on init
     LaunchedEffect(Unit) {
-        val latestFile = workspace.latestInputFor("super", afftService.getInputDir())
+        val latestFile =
+            workspace.resumeInputFor("super", afftService.getInputDir())
+                ?: workspace.latestInputFor("super", afftService.getInputDir())
         if (latestFile != null) {
             selectedInputFilePath = latestFile.absolutePath
             selectedFileName = latestFile.name
@@ -340,14 +342,34 @@ fun SuperScreen(
             onClick = {
                 selectedInputFile?.let { file ->
                     scope.launch {
+                        val t0 = System.currentTimeMillis()
                         val result = afftService.unpackSuper(file)
+                        workspace.recordOperation(
+                            title = "Unpack Super",
+                            ok = result.ok,
+                            durationMillis = System.currentTimeMillis() - t0,
+                            detail = result.message,
+                            resumeTool = "super",
+                            resumeStep = if (result.ok) "unpacked" else null,
+                            resumeFile = selectedFileName,
+                        )
                         if (result.ok) {
                             repackResult = "Unpack selesai. Partisi di temp/img/"
                         }
                     }
                 } ?: selectedUri?.let { uri ->
                     scope.launch {
+                        val t0 = System.currentTimeMillis()
                         val result = afftService.unpackSuper(uri)
+                        workspace.recordOperation(
+                            title = "Unpack Super",
+                            ok = result.ok,
+                            durationMillis = System.currentTimeMillis() - t0,
+                            detail = result.message,
+                            resumeTool = "super",
+                            resumeStep = if (result.ok) "unpacked" else null,
+                            resumeFile = selectedFileName,
+                        )
                         if (result.ok) {
                             repackResult = "Unpack selesai. Partisi di temp/img/"
                         }
@@ -394,10 +416,20 @@ fun SuperScreen(
                     showPartitionSelector = true
                 } else {
                     scope.launch {
+                        val t0 = System.currentTimeMillis()
                         val result =
                             afftService.repackSuper(
                                 customSourceDir = repackSourcePath,
                             )
+                        workspace.recordOperation(
+                            title = "Repack Super",
+                            ok = result.ok,
+                            durationMillis = System.currentTimeMillis() - t0,
+                            detail = result.message,
+                            resumeTool = "super",
+                            resumeStep = if (result.ok) "repacked" else null,
+                            resumeFile = selectedFileName,
+                        )
                         repackResult =
                             if (result.ok) {
                                 "Repack selesai: temp/repacked/super_repack.img"
@@ -506,11 +538,21 @@ fun SuperScreen(
                     onClick = {
                         showPartitionSelector = false
                         scope.launch {
+                            val t0 = System.currentTimeMillis()
                             val result =
                                 afftService.repackSuper(
                                     selectedPartitions.toList().map { "$it.img" },
                                     customSourceDir = repackSourcePath,
                                 )
+                            workspace.recordOperation(
+                                title = "Repack Super",
+                                ok = result.ok,
+                                durationMillis = System.currentTimeMillis() - t0,
+                                detail = result.message,
+                                resumeTool = "super",
+                                resumeStep = if (result.ok) "repacked" else null,
+                                resumeFile = selectedFileName,
+                            )
                             repackResult =
                                 if (result.ok) {
                                     "Repack selesai: temp/repacked/super_repack.img"

@@ -15,7 +15,7 @@ android {
         applicationId = "com.afft.app"
         minSdk = 26
         targetSdk = 35
-        versionName = "2.2.0"
+        versionName = "2.3.0"
         versionCode = generateVersionCode()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

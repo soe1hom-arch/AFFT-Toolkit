@@ -100,7 +100,9 @@ fun BootScreen(
 
     // Auto-detect file dari input/ saat screen dimuat (untuk menghindari copy ulang)
     LaunchedEffect(Unit) {
-        val latestFile = workspace.latestInputFor("boot", afftService.getInputDir())
+        val latestFile =
+            workspace.resumeInputFor("boot", afftService.getInputDir())
+                ?: workspace.latestInputFor("boot", afftService.getInputDir())
         if (latestFile != null) {
             selectedInputFilePath = latestFile.absolutePath
             selectedFileName = latestFile.name
@@ -253,7 +255,7 @@ fun BootScreen(
         ScreenHeader(
             iconRes = R.drawable.ic_boot_image,
             title = "Boot Family Operations",
-            subtitle = "Unpack & repack boot images (boot, vendor_boot, init_boot, dtbo, recovery, vbmeta)",
+            subtitle = "Unpack & repack 7 boot images (boot, vendor_boot, init_boot, dtbo, recovery, vbmeta, vendor_kernel_boot)",
             status =
                 when {
                     isRunning -> StatusType.RUNNING to "PROCESSING"
@@ -335,13 +337,33 @@ fun BootScreen(
                 selectedInputFile?.let { file ->
                     selectedBootType?.let { type ->
                         scope.launch {
-                            afftService.unpackBoot(file, type.fileName)
+                            val t0 = System.currentTimeMillis()
+                            val result = afftService.unpackBoot(file, type.fileName)
+                            workspace.recordOperation(
+                                title = "Unpack Boot",
+                                ok = result.ok,
+                                durationMillis = System.currentTimeMillis() - t0,
+                                detail = result.message,
+                                resumeTool = "boot",
+                                resumeStep = if (result.ok) "unpacked" else null,
+                                resumeFile = selectedFileName,
+                            )
                         }
                     }
                 } ?: selectedUri?.let { uri ->
                     selectedBootType?.let { type ->
                         scope.launch {
-                            afftService.unpackBoot(uri, type.fileName)
+                            val t0 = System.currentTimeMillis()
+                            val result = afftService.unpackBoot(uri, type.fileName)
+                            workspace.recordOperation(
+                                title = "Unpack Boot",
+                                ok = result.ok,
+                                durationMillis = System.currentTimeMillis() - t0,
+                                detail = result.message,
+                                resumeTool = "boot",
+                                resumeStep = if (result.ok) "unpacked" else null,
+                                resumeFile = selectedFileName,
+                            )
                         }
                     }
                 }
@@ -381,7 +403,18 @@ fun BootScreen(
             onClick = {
                 selectedBootType?.let { type ->
                     scope.launch {
-                        afftService.repackBoot(type.fileName, customSourceDir = repackSourcePath)
+                        val t0 = System.currentTimeMillis()
+                        val result =
+                            afftService.repackBoot(type.fileName, customSourceDir = repackSourcePath)
+                        workspace.recordOperation(
+                            title = "Repack Boot",
+                            ok = result.ok,
+                            durationMillis = System.currentTimeMillis() - t0,
+                            detail = result.message,
+                            resumeTool = "boot",
+                            resumeStep = if (result.ok) "repacked" else null,
+                            resumeFile = selectedFileName,
+                        )
                     }
                 }
             },

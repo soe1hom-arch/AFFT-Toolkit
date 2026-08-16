@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/soe1hom-arch/AFFT-Toolkit/releases/latest"><img src="https://img.shields.io/github/v/release/soe1hom-arch/AFFT-Toolkit?style=flat-square&label=Release&color=blue&v=2.2.0" alt="Release"></a>
+  <a href="https://github.com/soe1hom-arch/AFFT-Toolkit/releases/latest"><img src="https://img.shields.io/github/v/release/soe1hom-arch/AFFT-Toolkit?style=flat-square&label=Release&color=blue&v=2.3.0" alt="Release"></a>
   <a href="https://github.com/soe1hom-arch/AFFT-Toolkit/actions"><img src="https://img.shields.io/github/actions/workflow/status/soe1hom-arch/AFFT-Toolkit/build.yml?style=flat-square&label=Build" alt="Build"></a>
   <a href="https://github.com/soe1hom-arch/AFFT-Toolkit/releases"><img src="https://img.shields.io/github/downloads/soe1hom-arch/AFFT-Toolkit/total?style=flat-square&label=Downloads&color=success" alt="Downloads"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-brightgreen?style=flat-square" alt="Android 8.0+">
@@ -49,11 +49,12 @@
 - **Interactive metadata** — long values open a bottom sheet with copy/share/open-folder actions.
 - **AFFT Manager** — full file management: search, sort, multi-select, copy/move, delete, create folder, rename, properties, import.
 
-## ✨ What's New (v2.3.0 — unreleased)
+## ✨ What's New in v2.3.0
 
 - **Tools Hub & Navigation** — Home is now a hub for every tool with sealed-class routes, a working Android back stack, and deep links such as `afft://tools/super`.
 - **Professional UI** — consistent headers, numbered step flows and unified dialogs across all tool screens and the file manager.
 - **Repack from any folder** — the repack source folder can be picked from anywhere on the device (built-in folder browser or the system SAF folder picker), not just the workspace.
+- **Persistent history & resume** — extract/repack operations are recorded per project, history survives restarts (and can be cleared), and Home shows Recent Projects with a resume point to continue where you left off.
 - **Service refactor** — log and storage concerns moved out of `AFFTService` (`LogManager`, `StorageManager`).
 
 See the full history in [CHANGELOG.md](CHANGELOG.md).
@@ -64,7 +65,7 @@ See the full history in [CHANGELOG.md](CHANGELOG.md).
 
 | Feature | Description |
 |---------|-------------|
-| **Payload Dumper** | Unpack & repack `payload.bin` OTA firmware (payload-dumper-go engine). |
+| **Payload Dumper** | Analyze & unpack `payload.bin` OTA firmware, with on-demand SHA-256 (payload-dumper-go engine). |
 | **Super Image** | Unpack & repack `super.img`, sparse-aware (lpunpack/lpmake). |
 | **Filesystem** | Extract & repack EROFS/ext4 images (mkfs.erofs / debugfs / make_ext4fs). |
 | **Boot Family** | Unpack & repack 7 boot image types incl. `vendor_boot` (magiskboot). |

@@ -73,7 +73,7 @@ fun AboutFeaturesContent(
                 if (english) {
                     listOf(
                         "Workspace projects (create, open, recent, history)",
-                        "Extract & repack payload.bin",
+                        "Extract & analyze payload.bin",
                         "Unpack & repack super.img (sparse)",
                         "Extract & repack filesystem (EROFS / ext4)",
                         "Unpack & repack boot images (7 types)",
@@ -87,7 +87,7 @@ fun AboutFeaturesContent(
                 } else {
                     listOf(
                         "Proyek workspace (buat, buka, terbaru, riwayat)",
-                        "Ekstrak & repack payload.bin",
+                        "Ekstrak & analisis payload.bin",
                         "Unpack & repack super.img (sparse)",
                         "Ekstrak & repack filesystem (EROFS / ext4)",
                         "Unpack & repack boot image (7 jenis)",
