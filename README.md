@@ -122,7 +122,7 @@ Projects survive app restarts and configuration changes; missing folders are rec
 
 ## 🔐 Privacy & Backup
 
-AFFT Toolkit **excludes all working data from Android Auto Backup / device transfer**:
+AFFT Toolkit, **excludes all working data from Android Auto Backup / device transfer**:
 
 - `afft_work/` (input, temp, logs, extraction & repack results) — **excluded**
 - `workspace/` (firmware projects) — **excluded**
