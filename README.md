@@ -39,27 +39,6 @@
 
 ---
 
-## ✨ What's New in v2.2.0
-
-- **Workspace Engine** — every firmware task is a project: create, open, resume, rename, delete, recent projects, operation history, metadata & health score.
-- **Firmware Analysis** — metadata-only parsers for `payload.bin`, `boot.img`, `super.img` and EROFS/ext4 images. Safe for 8–10+ GB images (no full-image loading), with validation, health score & recommendations.
-- **Firmware Inspector** — dashboard with StatusPanel, WorkspaceCard, QuickMetrics, and a Live Status card that stays alive even while idle.
-- **Premium appearance** — 6 theme presets (AFFT Green, Midnight Cyan, Amber Solar, Violet Nebula, Cherry Red, Dark Gray Premium), System/Dark/Light mode, dynamic color, custom accent & icon colors, custom fonts (Inter & JetBrains Mono).
-- **Languages** — English (default) and Bahasa Indonesia, persisted.
-- **Interactive metadata** — long values open a bottom sheet with copy/share/open-folder actions.
-- **AFFT Manager** — full file management: search, sort, multi-select, copy/move, delete, create folder, rename, properties, import.
-
-## ✨ What's New in v2.3.0
-
-- **Tools Hub & Navigation** — Home is now a hub for every tool with sealed-class routes, a working Android back stack, and deep links such as `afft://tools/super`.
-- **Professional UI** — consistent headers, numbered step flows and unified dialogs across all tool screens and the file manager.
-- **Repack from any folder** — the repack source folder can be picked from anywhere on the device (built-in folder browser or the system SAF folder picker), not just the workspace.
-- **Persistent history & resume** — extract/repack operations are recorded per project, history survives restarts (and can be cleared), and Home shows Recent Projects with a resume point to continue where you left off.
-- **Service refactor** — log and storage concerns moved out of `AFFTService` (`LogManager`, `StorageManager`).
-
-See the full history in [CHANGELOG.md](CHANGELOG.md).
-
----
 
 ## 🎯 Features
 
@@ -155,16 +134,6 @@ Rules are enforced via `res/xml/data_extraction_rules.xml` (Android 12+) and `re
 
 ## 🛠 Building from Source
 
-```bash
-# Debug APK + unit tests
-./gradlew :app:assembleDebug :app:testDebugUnitTest
-
-# Release APK (requires keystore env vars)
-KEYSTORE_PATH=... KEYSTORE_PASSWORD=... KEY_ALIAS=... KEY_PASSWORD=... \
-  ./gradlew :app:assembleRelease
-```
-
-> Release builds are also produced automatically by GitHub Actions whenever a `v*` tag is pushed.
 
 ---
 
@@ -186,7 +155,7 @@ KEYSTORE_PATH=... KEYSTORE_PASSWORD=... KEY_ALIAS=... KEY_PASSWORD=... \
 
 ## 👨‍💻 Developer
 
-**Wandi / soe1hom-arch**
+**Wandi (soe1hom-arch)**
 
 [Report Issue](https://github.com/soe1hom-arch/AFFT-Toolkit/issues) · [Discussions](https://github.com/soe1hom-arch/AFFT-Toolkit/discussions)
 
@@ -194,4 +163,4 @@ KEYSTORE_PATH=... KEYSTORE_PASSWORD=... KEY_ALIAS=... KEY_PASSWORD=... \
 
 ## 📄 License
 
-Apache License 2.0 — © 2026 Wandi (see [NOTICE](NOTICE)). Third-party binaries are subject to their respective licenses.
+Apache License 2.0 — © 2026 Wandi (Soe1hom-arch). (see [NOTICE](NOTICE)). Third-party binaries are subject to their respective licenses.
