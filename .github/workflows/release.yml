@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, e.g. v2.1.1'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -22,70 +28,111 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@d9c87d481d55275bb5441eef3fe0e46805f9ef70 # v3
         with:
           gradle-version: '8.14.2'
 
-      - name: Decode Keystore
+      - name: Determine release tag
+        id: release
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+
+          if [[ ! "$TAG" =~ ^v[0-9] ]]; then
+            echo "Error: Release tag must start with v followed by a version number."
+            echo "Example: v2.1.1"
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $TAG"
+
+      - name: Decode keystore
+        shell: bash
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/release-key.jks
 
       - name: Build Release APK
-        run: |
-          ./gradlew assembleRelease
         shell: bash
         env:
           KEYSTORE_PATH: "release-key.jks"
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease
 
-      - name: Clean Keystore
+      - name: Clean keystore
         if: always()
+        shell: bash
         run: |
           if [ -f app/release-key.jks ]; then
             rm -f app/release-key.jks
           fi
 
       - name: Rename APK with version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
-          cp app/build/outputs/apk/release/app-release.apk \
-             app/build/outputs/apk/release/AFFT-Toolkit_${{ github.ref_name }}.apk
+          APK="app/build/outputs/apk/release/app-release.apk"
+          OUTPUT="app/build/outputs/apk/release/AFFT-Toolkit_${RELEASE_TAG}.apk"
+
+          if [ ! -f "$APK" ]; then
+            echo "Error: Release APK was not found:"
+            echo "$APK"
+            exit 1
+          fi
+
+          cp "$APK" "$OUTPUT"
+
+          echo "APK created:"
+          echo "$OUTPUT"
 
       - name: Generate release notes from CHANGELOG
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
-          TAG="${{ github.ref_name }}"
-          # Extract changelog entry for this version from CHANGELOG.md
-          # Extract changelog entry: tag is v2.1.1, changelog has [2.1.1]
-          CHANGELOG_VERSION=$(echo "$TAG" | sed 's/^v//')
+          CHANGELOG_VERSION="${RELEASE_TAG#v}"
+
           awk -v tag="[$CHANGELOG_VERSION]" '
-            /^## / { if (found) exit; if (index($0, tag)) found=1; }
+            /^## / {
+              if (found) exit
+              if (index($0, tag)) found=1
+            }
             found { print }
           ' CHANGELOG.md > /tmp/release-notes.md
-          
-          # Fallback: if extraction empty, use auto-generated notes
+
           if [ ! -s /tmp/release-notes.md ]; then
-            echo "## AFFT-Toolkit ${TAG}" > /tmp/release-notes.md
+            echo "## AFFT-Toolkit ${RELEASE_TAG}" > /tmp/release-notes.md
             echo "" >> /tmp/release-notes.md
             echo "See [CHANGELOG](https://github.com/soe1hom-arch/AFFT-Toolkit/blob/main/CHANGELOG.md) for details." >> /tmp/release-notes.md
           fi
-          
-          # Add links footer
+
           echo "" >> /tmp/release-notes.md
           echo "---" >> /tmp/release-notes.md
           echo "[📖 README](https://github.com/soe1hom-arch/AFFT-Toolkit#readme) · [📋 Full Changelog](https://github.com/soe1hom-arch/AFFT-Toolkit/blob/main/CHANGELOG.md)" >> /tmp/release-notes.md
 
       - name: Create GitHub Release
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.PAT_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           IS_PRERELEASE="false"
-          if echo "${{ github.ref_name }}" | grep -qiE "beta|alpha|rc|pre"; then
+
+          if echo "$RELEASE_TAG" | grep -qiE "beta|alpha|rc|pre"; then
             IS_PRERELEASE="true"
           fi
-          gh release create "${{ github.ref_name }}" \
-             --title "${{ github.ref_name }}" \
-             --notes-file /tmp/release-notes.md \
-             --prerelease="$IS_PRERELEASE" \
-             "app/build/outputs/apk/release/AFFT-Toolkit_${{ github.ref_name }}.apk"
+
+          gh release create "$RELEASE_TAG" \
+            --title "$RELEASE_TAG" \
+            --notes-file /tmp/release-notes.md \
+            --prerelease="$IS_PRERELEASE" \
+            "app/build/outputs/apk/release/AFFT-Toolkit_${RELEASE_TAG}.apk"
