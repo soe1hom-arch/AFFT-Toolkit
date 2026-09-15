@@ -35,7 +35,6 @@
 2. Grant **"Manage All Files"** access on first launch.
 3. Choose a tool (Payload / Super / Filesystem / Boot), pick a firmware file, analyze or unpack — everything runs on-device.
 
-> 🚀 **v2.2.0** — Workspace Engine, firmware analysis (payload/boot/super/filesystem parsers), premium UI themes, custom fonts & languages.
 
 ---
 
