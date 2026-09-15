@@ -131,8 +131,12 @@ jobs:
             IS_PRERELEASE="true"
           fi
 
-          gh release create "$RELEASE_TAG" \
-            --title "$RELEASE_TAG" \
-            --notes-file /tmp/release-notes.md \
-            --prerelease="$IS_PRERELEASE" \
-            "app/build/outputs/apk/release/AFFT-Toolkit_${RELEASE_TAG}.apk"
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            echo "Release $RELEASE_TAG already exists, skipping creation."
+          else
+            gh release create "$RELEASE_TAG" \
+              --title "$RELEASE_TAG" \
+              --notes-file /tmp/release-notes.md \
+              --prerelease="$IS_PRERELEASE" \
+              "app/build/outputs/apk/release/AFFT-Toolkit_${RELEASE_TAG}.apk"
+          fi
