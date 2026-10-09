@@ -55,7 +55,8 @@ mkdir -p "$OBJDIR"
 compile() {
     local src="$1"
     local obj="$OBJDIR/$(echo "$src" | tr '/.' '__').o"
-    "$CXX" "${CXXFLAGS[@]}" "${INCLUDES[@]}" -c "$src" -o "$obj"
+    # Compiler stdout goes to stderr so $(compile) captures only the obj path.
+    "$CXX" "${CXXFLAGS[@]}" "${INCLUDES[@]}" -c "$src" -o "$obj" >&2
     echo "$obj"
 }
 

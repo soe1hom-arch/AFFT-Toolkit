@@ -95,9 +95,10 @@ fetch_ref() {
 # Assert that expected source files exist; fail loudly otherwise.
 require_files() {
     local missing=0
-    for f in "$@"; do
-        if [ ! -f "$f" ]; then
-            echo "ERROR: expected source file not found: $f" >&2
+    local req
+    for req in "$@"; do
+        if [ ! -f "$req" ]; then
+            echo "ERROR: expected source file not found: $req" >&2
             missing=1
         fi
     done
