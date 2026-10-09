@@ -1,0 +1,38 @@
+# Sample F-Droid recipe — submit this (adapted) to
+# https://gitlab.com/fdroid/fdroiddata as metadata/com.afft.app.yml
+# Validate locally: `fdroid lint com.afft.app` then `fdroid build com.afft.app`
+# See F-DROID.md in this repo for the full submission walkthrough.
+
+Categories:
+  - System
+License: Apache-2.0
+AuthorName: Wandi
+WebSite: https://github.com/soe1hom-arch/AFFT-Toolkit
+SourceCode: https://github.com/soe1hom-arch/AFFT-Toolkit
+IssueTracker: https://github.com/soe1hom-arch/AFFT-Toolkit/issues
+
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags
+
+# All 9 native helper binaries are compiled from pinned upstream sources
+# at build time (tools/build_all.sh). No prebuilt binaries in the repo.
+Builds:
+  - versionName: 2.3.0
+    versionCode: 26100901
+    commit: v2.3.0
+    sudo:
+      - apt-get update
+      - apt-get install -y autoconf automake libtool pkg-config golang-go
+    init:
+      - echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "ndk;27.0.12077973"
+    prebuild:
+      - export NDK_DIR=$ANDROID_HOME/ndk/27.0.12077973
+      - export AFFT_VERSION_CODE=26100901
+      - bash tools/build_all.sh --check
+    build:
+      - export NDK_DIR=$ANDROID_HOME/ndk/27.0.12077973
+      - export AFFT_VERSION_CODE=26100901
+      - ./gradlew assembleRelease
+    gradle:
+      - yes
+    output: app/build/outputs/apk/release/app-release.apk

@@ -44,6 +44,21 @@ jobs:
         with:
           gradle-version: '8.14.2'
 
+      - name: Set up Go (payload-dumper-go)
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f49769de0a # v5
+        with:
+          go-version: stable
+
+      - name: Install NDK + autotools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y autoconf automake libtool pkg-config
+          echo "y" | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.0.12077973"
+          echo "NDK_DIR=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+
+      - name: Verify pinned upstream refs
+        run: bash tools/build_all.sh --check
+
       - name: Build APK with Gradle
         run: ./gradlew assembleDebug
 

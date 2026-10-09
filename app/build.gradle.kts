@@ -16,7 +16,8 @@ android {
         minSdk = 26
         targetSdk = 35
         versionName = "2.3.0"
-        versionCode = generateVersionCode()
+        // F-Droid/reproducible builds: pin via AFFT_VERSION_CODE env, else date-based.
+        versionCode = System.getenv("AFFT_VERSION_CODE")?.toIntOrNull() ?: generateVersionCode()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -76,6 +77,45 @@ android {
     androidResources {
         noCompress += "bin"
     }
+}
+
+// F-Droid: helper binaries in app/src/main/jniLibs are built from pinned
+// upstream sources (tools/build_all.sh), never committed. Verify them before
+// every build; build automatically when the NDK is available.
+// Escape hatch for UI-only iteration: ./gradlew assembleDebug -PskipNativeBinaries
+val ndkDirEnv: String? =
+    System.getenv("ANDROID_NDK_HOME") ?: System.getenv("NDK_DIR")
+
+tasks.register("ensureNativeBinaries") {
+    doLast {
+        if (project.hasProperty("skipNativeBinaries")) {
+            logger.warn("Skipping native binaries check (-PskipNativeBinaries).")
+            return@doLast
+        }
+        val verifyResult =
+            project.exec {
+                commandLine("bash", "tools/verify_binaries.sh")
+                isIgnoreExitValue = true
+            }
+        if (verifyResult.exitValue == 0) return@doLast
+        if (ndkDirEnv.isNullOrBlank()) {
+            throw GradleException(
+                "Native helper binaries are missing and no NDK was found. " +
+                    "Set ANDROID_NDK_HOME (or NDK_DIR) and rebuild so " +
+                    "tools/build_all.sh can compile them from source. " +
+                    "See tools/README.md and F-DROID.md.",
+            )
+        }
+        logger.lifecycle("Building native helper binaries from source (NDK: $ndkDirEnv)...")
+        project.exec {
+            environment("NDK_DIR", ndkDirEnv as String)
+            commandLine("bash", "tools/build_all.sh")
+        }
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn("ensureNativeBinaries")
 }
 
 dependencies {

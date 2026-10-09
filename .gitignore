@@ -18,3 +18,11 @@ app/release-key.jks
 release-key.jks
 keystore_base64.txt
 afft-build.zip
+
+# F-Droid: never commit prebuilt native binaries.
+# Built from source at build time via tools/build_all.sh (see F-DROID.md).
+# Only .gitkeep placeholders are tracked.
+app/src/main/jniLibs/*
+!app/src/main/jniLibs/.gitkeep
+app/src/main/assets/bin/*
+!app/src/main/assets/bin/.gitkeep

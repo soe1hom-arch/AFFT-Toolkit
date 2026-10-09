@@ -1440,14 +1440,14 @@ class AFFTService(
             if (outputFile.exists()) outputFile.delete()
 
             // Cari binary dan file_contexts
-            val makeExt4 = BinaryManager.getBinaryPath(context, "make_ext4fs")
+            val mke2fsBin = BinaryManager.getBinaryPath(context, "mke2fs")
             val mkfsErofs = BinaryManager.getBinaryPath(context, "mkfs.erofs")
             val fileContextsPath = findFileContexts(srcDir)
 
             updateProgress("Repacking filesystem...")
 
             // Prioritaskan mkfs.erofs untuk Android modern (EROFS)
-            // Fallback ke make_ext4fs untuk Android lama (ext4)
+            // Fallback ke mke2fs (e2fsprogs) untuk Android lama (ext4)
             if (mkfsErofs != null) {
                 addLog("[INFO] Repack dengan mkfs.erofs -z lz4hc,9 -C 4096 ${dirName}_repack.img $dirName/")
                 var erofsOk =
@@ -1490,11 +1490,11 @@ class AFFTService(
                             outputFile.absolutePath,
                         )
                     } else {
-                        addLog("[FAIL] mkfs.erofs lz4hc dan none gagal, fallback ke make_ext4fs...")
+                        addLog("[FAIL] mkfs.erofs lz4hc dan none gagal, fallback ke mke2fs...")
                         if (outputFile.exists()) outputFile.delete()
-                        // Fallback ke make_ext4fs
-                        if (makeExt4 != null) {
-                            val fallbackOk = repackExt4(makeExt4, outputFile, srcDir)
+                        // Fallback ke mke2fs (pengganti make_ext4fs yang deprecated)
+                        if (mke2fsBin != null) {
+                            val fallbackOk = repackExt4(mke2fsBin, outputFile, srcDir)
                             if (fallbackOk) {
                                 copyResultToDownload(outputFile.absolutePath, "${dirName}_repack.img")
                                 OperationResult(
@@ -1507,21 +1507,21 @@ class AFFTService(
                                 OperationResult(
                                     false,
                                     "Repack Filesystem",
-                                    "mkfs.erofs & make_ext4fs all failed",
+                                    "mkfs.erofs & mke2fs all failed",
                                 )
                             }
                         } else {
                             OperationResult(
                                 false,
                                 "Repack Filesystem",
-                                "mkfs.erofs failed, make_ext4fs not available",
+                                "mkfs.erofs failed, mke2fs not available",
                             )
                         }
                     }
                 }
-            } else if (makeExt4 != null) {
-                addLog("Running: make_ext4fs -s ${dirName}_repack.img $dirName/")
-                val repackOk = repackExt4(makeExt4, outputFile, srcDir)
+            } else if (mke2fsBin != null) {
+                addLog("Running: mke2fs -t ext4 -d $dirName/ ${dirName}_repack.img")
+                val repackOk = repackExt4(mke2fsBin, outputFile, srcDir)
                 if (repackOk) {
                     addLog("[OK] Repacked ext4: ${outputFile.name} (${outputFile.length()} bytes)")
                     updateProgress("Repack ext4 selesai! (${outputFile.length()} bytes)")
@@ -1533,15 +1533,15 @@ class AFFTService(
                         outputFile.absolutePath,
                     )
                 } else {
-                    addLog("[FAIL] make_ext4fs gagal dan tidak ada mkfs.erofs sebagai fallback")
+                    addLog("[FAIL] mke2fs gagal dan tidak ada mkfs.erofs sebagai fallback")
                     OperationResult(
                         false,
                         "Repack Filesystem",
-                        "make_ext4fs failed, mkfs.erofs not available",
+                        "mke2fs failed, mkfs.erofs not available",
                     )
                 }
             } else {
-                addLog("[FAIL] Tidak ada binary repack (make_ext4fs, mkfs.erofs)")
+                addLog("[FAIL] Tidak ada binary repack (mke2fs, mkfs.erofs)")
                 OperationResult(
                     false,
                     "Repack Filesystem",
@@ -1616,11 +1616,13 @@ class AFFTService(
     }
 
     /**
-     * Helper untuk menjalankan make_ext4fs dengan parameter yang benar.
-     * Digunakan sebagai fallback ketika mkfs.erofs tidak tersedia.
+     * Helper untuk repack ext4 memakai mke2fs (e2fsprogs) dengan parameter
+     * yang benar. mke2fs menggantikan make_ext4fs yang deprecated dan sudah
+     * dihapus dari AOSP (tidak ada sumber upstream yang maintained).
+     * Dipakai sebagai fallback ketika mkfs.erofs tidak tersedia/gagal.
      */
     private suspend fun repackExt4(
-        makeExt4: String,
+        mke2fs: String,
         outputFile: File,
         srcDir: File,
     ): Boolean {
@@ -1628,28 +1630,32 @@ class AFFTService(
 
         val sizeBytes = storageManager.calculateDirSize(srcDir)
         val partitionSize = ((sizeBytes * 1.25).toLong() + 4095) / 4096 * 4096
-        addLog("[INFO] Menjalankan make_ext4fs -s -l $partitionSize ${outputFile.name} ${srcDir.name}/")
+        val blockCount = (partitionSize / 4096).toString()
+        addLog("[INFO] Menjalankan mke2fs -t ext4 -b 4096 -d ${srcDir.name}/ ${outputFile.name} $blockCount")
 
         val result =
             ShellExecutor.executeBinary(
-                binaryPath = makeExt4,
+                binaryPath = mke2fs,
                 args =
                     listOf(
-                        "-s",
-                        "-l",
-                        partitionSize.toString(),
-                        outputFile.absolutePath,
+                        "-t",
+                        "ext4",
+                        "-b",
+                        "4096",
+                        "-d",
                         srcDir.absolutePath,
+                        outputFile.absolutePath,
+                        blockCount,
                     ),
                 workingDir = getTempDir(),
                 onOutput = { line -> addLog(line) },
             )
 
         if (result.exitCode == 0 && outputFile.exists() && outputFile.length() > 0) {
-            addLog("[OK] make_ext4fs berhasil: ${outputFile.length()} bytes")
+            addLog("[OK] mke2fs berhasil: ${outputFile.length()} bytes")
             return true
         }
-        addLog("[FAIL] make_ext4fs gagal (exit ${result.exitCode})")
+        addLog("[FAIL] mke2fs gagal (exit ${result.exitCode})")
         result.errorOutput.forEach { addLog("[ERROR] $it") }
         return false
     }

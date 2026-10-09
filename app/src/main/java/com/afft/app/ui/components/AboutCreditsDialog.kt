@@ -78,7 +78,7 @@ fun AboutCreditsContent(
             CreditRow("lpmake", "AOSP", "https://android.googlesource.com/platform/system/core/")
             CreditRow("lpunpack", "AOSP", "https://android.googlesource.com/platform/system/core/")
             CreditRow("mkfs.erofs / extract.erofs", "erofs-utils", "https://git.kernel.org/pub/scm/linux/kernel/git/xiang/erofs-utils.git")
-            CreditRow("make_ext4fs / debugfs", "AOSP", "https://android.googlesource.com/platform/system/core/")
+            CreditRow("mke2fs / debugfs", "e2fsprogs", "https://github.com/tytso/e2fsprogs")
             CreditRow("simg2img", "AOSP", "https://android.googlesource.com/platform/system/core/")
             CreditRow("liblzma", "tukaani-project/xz", "https://github.com/tukaani-project/xz")
             CreditRow("libzstd", "facebook/zstd", "https://github.com/facebook/zstd")

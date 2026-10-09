@@ -26,6 +26,9 @@ object BinaryManager {
     private const val BIN_DIR = "bin"
     private const val APP_BIN_DIR = "afft_bin"
 
+    // Helper binaries built from source at build time (tools/build_all.sh).
+    // "mke2fs" (e2fsprogs) replaced the deprecated "make_ext4fs", which was
+    // removed from AOSP before Android 9 and has no maintained upstream.
     private val REQUIRED_BINARIES =
         listOf(
             "debugfs",
@@ -33,7 +36,7 @@ object BinaryManager {
             "extract.erofs",
             "lpmake",
             "magiskboot",
-            "make_ext4fs",
+            "mke2fs",
             "mkfs.erofs",
             "payload-dumper-go",
             "simg2img",
@@ -46,7 +49,7 @@ object BinaryManager {
             "lpunpack",
             "lpmake",
             "magiskboot",
-            "make_ext4fs",
+            "mke2fs",
             "mkfs.erofs",
             "payload-dumper-go",
             "simg2img",

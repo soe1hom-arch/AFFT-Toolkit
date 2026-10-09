@@ -1,28 +1,32 @@
 # Third-Party Notices
 
-AFFT-Toolkit (AFFT) membundel binary biner pihak ketiga untuk
+AFFT-Toolkit (AFFT) membundel binary helper pihak ketiga untuk
 menjalankan operasi unpack/repack langsung di perangkat Android. Setiap binary
 di bawah ini adalah karya pemiliknya masing-masing dan tunduk pada lisensi
 sumbernya. Lisensi Apache-2.0 pada proyek ini **tidak** menaungi binary tersebut.
 
-Semua binary disimpan di `app/src/main/jniLibs/arm64-v8a/` (sebagai
-`lib<name>.so`) dan satu fallback di `app/src/main/assets/bin/`.
+Semua binary **dibangun dari source** saat build (`tools/build_all.sh`,
+versi yang di-pin di `tools/build_config.sh`) dan dikemas sebagai
+`lib<name>.so` di `app/src/main/jniLibs/arm64-v8a/`. Tidak ada binary
+prebuilt yang di-commit ke repo ini (lihat `F-DROID.md`).
 
-| Binary | Sumber | Lisensi |
-|--------|--------|---------|
-| `payload-dumper-go` | [ssut/payload-dumper-go](https://github.com/ssut/payload-dumper-go) | GPL-3.0 |
-| `lpmake` / `lpunpack` | [AOSP system/core (liblp)](https://android.googlesource.com/platform/system/core/) | Apache-2.0 |
-| `simg2img` | [AOSP system/core (libsparse)](https://android.googlesource.com/platform/system/core/) | Apache-2.0 |
-| `magiskboot` | [topjohnwu/Magisk](https://github.com/topjohnwu/Magisk) | GPL-3.0 |
-| `make_ext4fs` / `debugfs` | [AOSP system/core](https://android.googlesource.com/platform/system/core/) | Apache-2.0 |
-| `mkfs.erofs` / `extract.erofs` | [erofs-utils](https://git.kernel.org/pub/scm/linux/kernel/git/xiang/erofs-utils.git) | GPL-2.0 |
-| `liblzma` (via cgo) | [tukaani-project/xz](https://github.com/tukaani-project/xz) | 0BSD |
-| `libzstd` (via cgo) | [facebook/zstd](https://github.com/facebook/zstd) | BSD-3-Clause |
+| Binary | Sumber (versi pin) | Lisensi |
+|--------|--------------------|---------|
+| `payload-dumper-go` | [ssut/payload-dumper-go](https://github.com/ssut/payload-dumper-go) @ 2.1.0 | GPL-3.0 |
+| `lpmake` / `lpunpack` | [AOSP system/extras + system/core (liblp)](https://android.googlesource.com/platform/system/extras) @ android-14.0.0_r1 | Apache-2.0 |
+| `simg2img` | [AOSP system/core (libsparse)](https://android.googlesource.com/platform/system/core/) @ android-14.0.0_r1 | Apache-2.0 |
+| `magiskboot` | [topjohnwu/Magisk](https://github.com/topjohnwu/Magisk) @ v25.1 (pure-C++, dukung boot/vendor_boot v4) | GPL-3.0 |
+| `mke2fs` / `debugfs` | [e2fsprogs](https://github.com/tytso/e2fsprogs) @ v1.47.2 | GPL-2.0 |
+| `mkfs.erofs` / `extract.erofs` | [erofs-utils](https://git.kernel.org/pub/scm/linux/kernel/git/xiang/erofs-utils.git) @ v1.9.1 (`dump.erofs` dikemas sebagai `extract.erofs`) | GPL-2.0 |
+| `liblzma` (via cgo) | [tukaani-project/xz](https://github.com/tukaani-project/xz) @ 5.4.6 | 0BSD |
+| `libzstd` (via cgo) | [facebook/zstd](https://github.com/facebook/zstd) @ v1.5.5 | BSD-3-Clause |
+| `liblz4` (untuk mkfs.erofs) | [lz4/lz4](https://github.com/lz4/lz4) @ v1.9.4 | BSD-2-Clause |
 
 Catatan:
 
-- Skrip build di `tools/` menentukan bagaimana binary dibangun dari sumber
-  masing-masing. Silakan baca lisensi sumber sebelum mendistribusikan ulang.
+- `mke2fs` menggantikan `make_ext4fs` yang deprecated: `make_ext4fs` sudah
+  dihapus dari AOSP sebelum Android 9 dan tidak memiliki sumber upstream
+  yang maintained.
 - Jika Anda mendistribusikan APK yang mengandung binary GPL (mis. GPL-3.0),
   pastikan memenuhi kewajiban lisensi GPL, termasuk menyediakan source code
   yang sesuai.

@@ -45,7 +45,7 @@
 |---------|-------------|
 | **Payload Dumper** | Analyze & unpack `payload.bin` OTA firmware, with on-demand SHA-256 (payload-dumper-go engine). |
 | **Super Image** | Unpack & repack `super.img`, sparse-aware (lpunpack/lpmake). |
-| **Filesystem** | Extract & repack EROFS/ext4 images (mkfs.erofs / debugfs / make_ext4fs). |
+| **Filesystem** | Extract & repack EROFS/ext4 images (mkfs.erofs / debugfs / mke2fs). |
 | **Boot Family** | Unpack & repack 7 boot image types incl. `vendor_boot` (magiskboot). |
 | **Firmware Analysis** | Project-based parsers for payload/boot/super/filesystem with health score, validation & recommendations. |
 | **Firmware Inspector** | Dashboard: current project, analysis result, health score, validation, operation history. |
@@ -145,7 +145,7 @@ Rules are enforced via `res/xml/data_extraction_rules.xml` (Android 12+) and `re
 | **magiskboot** | [topjohnwu/Magisk](https://github.com/topjohnwu/Magisk) |
 | **simg2img** | [AOSP](https://android.googlesource.com/platform/system/core/) |
 | **mkfs.erofs / extract.erofs** | [erofs-utils](https://git.kernel.org/pub/scm/linux/kernel/git/xiang/erofs-utils.git) |
-| **make_ext4fs / debugfs** | [AOSP](https://android.googlesource.com/platform/system/core/) |
+| **mke2fs / debugfs** | [e2fsprogs](https://github.com/tytso/e2fsprogs) |
 | **liblzma / libzstd** | [tukaani-project/xz](https://github.com/tukaani-project/xz) / [facebook/zstd](https://github.com/facebook/zstd) |
 | **Inter** | [rsms/inter](https://github.com/rsms/inter) (OFL-1.1) |
 | **JetBrains Mono** | [JetBrains/JetBrainsMono](https://github.com/JetBrains/JetBrainsMono) (OFL-1.1) |
