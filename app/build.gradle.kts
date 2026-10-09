@@ -83,8 +83,9 @@ android {
 // upstream sources (tools/build_all.sh), never committed. Verify them before
 // every build; build automatically when the NDK is available.
 // Escape hatch for UI-only iteration: ./gradlew assembleDebug -PskipNativeBinaries
+// NDK_DIR (our pinned install) wins over the runner default ANDROID_NDK_HOME.
 val ndkDirEnv: String? =
-    System.getenv("ANDROID_NDK_HOME") ?: System.getenv("NDK_DIR")
+    System.getenv("NDK_DIR") ?: System.getenv("ANDROID_NDK_HOME")
 
 tasks.register("ensureNativeBinaries") {
     doLast {
@@ -94,6 +95,7 @@ tasks.register("ensureNativeBinaries") {
         }
         val verifyResult =
             project.exec {
+                workingDir(rootDir)
                 commandLine("bash", "tools/verify_binaries.sh")
                 isIgnoreExitValue = true
             }
@@ -108,6 +110,7 @@ tasks.register("ensureNativeBinaries") {
         }
         logger.lifecycle("Building native helper binaries from source (NDK: $ndkDirEnv)...")
         project.exec {
+            workingDir(rootDir)
             environment("NDK_DIR", ndkDirEnv as String)
             commandLine("bash", "tools/build_all.sh")
         }
