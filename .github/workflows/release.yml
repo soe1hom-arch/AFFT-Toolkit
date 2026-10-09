@@ -34,7 +34,7 @@ jobs:
           gradle-version: '8.14.2'
 
       - name: Set up Go (payload-dumper-go)
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f49769de0a # v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: stable
 
