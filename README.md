@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="screenshots/logo.png" width="420" alt="AFFT Toolkit Logo">
+  <img src="screenshots/logo.png" width="220" alt="AFFT Toolkit Logo">
 </p>
 
 <h1 align="center">AFFT Toolkit</h1>
