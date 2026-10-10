@@ -18,4 +18,4 @@ app/release-key.jks
 release-key.jks
 keystore_base64.txt
 afft-build.zip
-..acside/symbol-cache
+.acside/symbol-cache
