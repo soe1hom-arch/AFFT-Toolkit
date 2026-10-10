@@ -55,11 +55,7 @@
 | **Professional UI** | Consistent headers, numbered steps and unified dialogs across all tool screens & the file manager. |
 | **Live Status** | Always-animated status card on Home and every operation screen. |
 | **Interactive Metadata** | Paths, hashes, fingerprints & any long value open a bottom sheet — copy, share, open folder. |
-| **Appearance** | 6 premium presets, custom accent & icon colors, dynamic color, custom fonts. |
-| **Settings** | Language (EN/ID), theme, fonts and appearance in one place. |
-| **Console Log** | Real-time output in the sidebar, debug mode, and log recording toggle. |
 | **AFFT Manager** | Device file browser with search, sort, multi-select, copy/move/delete, create folder, rename, properties, import. |
-| **About & Legal** | Developer & tech stack, third-party credits, features, and bundled licenses (Apache-2.0, OFL-1.1, third-party notice). |
 
 ---
 
@@ -114,7 +110,7 @@ Projects survive app restarts and configuration changes; missing folders are rec
 | **Android** | 8.0+ (API 26) |
 | **Architecture** | ARM64 only |
 | **RAM** | 4 GB minimum (6 GB+ recommended) |
-| **Storage** | At least 10 GB free for large firmware files |
+| **Storage** | At least 10 GB+ free for large firmware files |
 | **Permissions** | `MANAGE_EXTERNAL_STORAGE`, foreground service, `POST_NOTIFICATIONS` |
 
 ---
@@ -130,12 +126,6 @@ AFFT Toolkit, **excludes all working data from Android Auto Backup / device tran
 Rules are enforced via `res/xml/data_extraction_rules.xml` (Android 12+) and `res/xml/backup_rules.xml` (older). Firmware images are never uploaded to cloud backup.
 
 ---
-
-## 🛠 Building from Source
-
-
----
-
 ## 🙏 Credits
 
 | Binary | Source |
@@ -154,7 +144,7 @@ Rules are enforced via `res/xml/data_extraction_rules.xml` (Android 12+) and `re
 
 ## 👨‍💻 Developer
 
-**Wandi (soe1hom-arch)**
+**Wandi/Soehom (Lucky Man)**
 
 [Report Issue](https://github.com/soe1hom-arch/AFFT-Toolkit/issues) · [Discussions](https://github.com/soe1hom-arch/AFFT-Toolkit/discussions)
 
@@ -162,4 +152,4 @@ Rules are enforced via `res/xml/data_extraction_rules.xml` (Android 12+) and `re
 
 ## 📄 License
 
-Apache License 2.0 — © 2026 Wandi (Soe1hom-arch). (see [NOTICE](NOTICE)). Third-party binaries are subject to their respective licenses.
+Apache License 2.0 — © 2026 Wandi (Soe1hom-arch). see [NOTICE](NOTICE). Third-party binaries are subject to their respective licenses.
