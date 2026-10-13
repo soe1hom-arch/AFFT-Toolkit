@@ -301,6 +301,26 @@ AFFT Toolkit is designed for local firmware workflows on the Android device.
 
 Refer to the application's current privacy policy and repository documentation for the applicable details.
 
+## Credits
+
+AFFT Toolkit uses or incorporates third-party tools and libraries for firmware processing and application presentation.
+
+| Component | Source |
+|---|---|
+| **payload-dumper-go** | [ssut/payload-dumper-go](https://github.com/ssut/payload-dumper-go) |
+| **lpmake / lpunpack** | [AOSP liblp](https://android.googlesource.com/platform/system/core/) |
+| **magiskboot** | [topjohnwu/Magisk](https://github.com/topjohnwu/Magisk) |
+| **simg2img** | [AOSP](https://android.googlesource.com/platform/system/core/) |
+| **mkfs.erofs / extract.erofs** | [erofs-utils](https://git.kernel.org/pub/scm/linux/kernel/git/xiang/erofs-utils.git) |
+| **make_ext4fs / debugfs** | [AOSP](https://android.googlesource.com/platform/system/core/) |
+| **liblzma / libzstd** | [XZ](https://github.com/tukaani-project/xz) / [Zstandard](https://github.com/facebook/zstd) |
+| **Inter** | [rsms/inter](https://github.com/rsms/inter) — OFL-1.1 |
+| **JetBrains Mono** | [JetBrainsMono](https://github.com/JetBrains/JetBrainsMono) — OFL-1.1 |
+
+Third-party components, binaries, and assets remain subject to their respective licenses.
+
+---
+
 ## OPEN SOURCE & ATTRIBUTION
 
 AFFT Toolkit builds on the Android development ecosystem and may incorporate third-party tools or libraries.
