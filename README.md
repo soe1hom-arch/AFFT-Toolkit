@@ -1,267 +1,344 @@
 
-<p align="center">
-  <img src="screenshots/logo.png" width="420" alt="AFFT Toolkit Logo">
-</p>
+<div align="center">
 
-<h1 align="center">AFFT Toolkit</h1>
+<img src="screenshots/logo.png" width="200" alt="AFFT Toolkit">
 
-<p align="center">
-  <strong>Android Firmware Full Toolkit</strong><br>
-  Analyze, unpack, modify, and repack Android firmware directly on your Android device.
-  <br>
-  No PC required. No Termux required. Fully on-device.
-</p>
+# AFFT TOOLKIT
 
-<p align="center">
-  <a href="https://github.com/soe1hom-arch/AFFT-Toolkit/releases/latest"><img src="https://img.shields.io/github/v/release/soe1hom-arch/AFFT-Toolkit?style=flat-square&label=Release&color=blue&v=2.3.0" alt="Release"></a>
-  <a href="https://github.com/soe1hom-arch/AFFT-Toolkit/actions"><img src="https://img.shields.io/github/actions/workflow/status/soe1hom-arch/AFFT-Toolkit/build.yml?style=flat-square&label=Build" alt="Build"></a>
-  <a href="https://github.com/soe1hom-arch/AFFT-Toolkit/releases"><img src="https://img.shields.io/github/downloads/soe1hom-arch/AFFT-Toolkit/total?style=flat-square&label=Downloads&color=success" alt="Downloads"></a>
-  <img src="https://img.shields.io/badge/Android-8.0%2B-brightgreen?style=flat-square" alt="Android 8.0+">
-  <img src="https://img.shields.io/badge/ARM64-only-red?style=flat-square" alt="ARM64 only">
-  <img src="https://img.shields.io/badge/License-Apache_2.0-blue?style=flat-square" alt="License">
-</p>
+### ANDROID FIRMWARE FULL TOOLKIT
 
-<p align="center">
-  <a href="https://soe1hom-arch.github.io/AFFT-Toolkit/">🌐 Website</a> ·
-  <a href="https://github.com/soe1hom-arch/AFFT-Toolkit/releases/latest">📥 Download</a> ·
-  <a href="CHANGELOG.md">📋 Changelog</a> ·
-  <a href="https://github.com/soe1hom-arch/AFFT-Toolkit/discussions">💬 Discussions</a>
-</p>
+**Your Android. Your Firmware. Your Control.**
 
----
+A native Android toolkit for analyzing, unpacking, modifying, and repacking Android firmware — directly on your device.
 
-## 📖 Overview
+<br>
 
-AFFT Toolkit (Android Firmware Full Toolkit) is an Android application for analyzing, unpacking, modifying, and repacking supported Android firmware images directly on Android devices.
+<a href="https://github.com/soe1hom-arch/AFFT-Toolkit/releases/latest">
+  <img src="https://img.shields.io/github/v/release/soe1hom-arch/AFFT-Toolkit?style=for-the-badge&label=LATEST%20RELEASE&color=64748b" alt="Latest Release">
+</a>
+<a href="https://github.com/soe1hom-arch/AFFT-Toolkit/releases">
+  <img src="https://img.shields.io/github/downloads/soe1hom-arch/AFFT-Toolkit/total?style=for-the-badge&label=DOWNLOADS&color=334155" alt="Downloads">
+</a>
+<img src="https://img.shields.io/badge/ANDROID-8.0%2B-475569?style=for-the-badge&logo=android&logoColor=white" alt="Android 8.0+">
+<img src="https://img.shields.io/badge/ARCHITECTURE-ARM64-475569?style=for-the-badge" alt="ARM64">
+<img src="https://img.shields.io/badge/LICENSE-APACHE--2.0-475569?style=for-the-badge" alt="Apache 2.0">
 
-It brings multiple firmware-processing utilities into one interface, allowing users to work with supported firmware formats, inspect metadata, manage workspace projects, review operation logs, and organize processing results without requiring a PC or a separate Termux environment.
+<br><br>
 
-AFFT Toolkit is intended for firmware enthusiasts, Android developers, and advanced users who understand the risks associated with firmware modification.
+[ **DOWNLOAD APK** ](https://github.com/soe1hom-arch/AFFT-Toolkit/releases/latest)
+&nbsp; · &nbsp;
+[ EXPLORE SOURCE ](https://github.com/soe1hom-arch/AFFT-Toolkit)
+&nbsp; · &nbsp;
+[ REPORT AN ISSUE ](https://github.com/soe1hom-arch/AFFT-Toolkit/issues)
 
-> **Important:** Successful analysis, extraction, or repacking does not guarantee that the resulting firmware is compatible with a device or safe to flash.
+</div>
 
 ---
 
-## ⚠️ Disclaimer & Safety Warning
+<div align="center">
 
-**Firmware modification and flashing involve risks. Use AFFT Toolkit at your own risk.**
+**FIRMWARE WORKFLOW — WITHOUT A DESKTOP**
 
-Incorrect or incompatible firmware operations can cause serious problems, including:
+Inspect &nbsp; / &nbsp; Extract &nbsp; / &nbsp; Modify &nbsp; / &nbsp; Repack
 
-- **Device bricking:** A device may become unbootable or permanently unusable.
-- **Bootloops and boot failures:** Modified or incompatible images may prevent Android from starting.
-- **Firmware corruption:** Incorrect processing, modification, or repacking may produce damaged or unusable firmware images.
-- **Data loss:** Firmware operations, recovery procedures, or flashing may erase personal files and device data.
-- **Device incompatibility:** Firmware images may not be compatible with a particular device model, hardware revision, region, partition layout, or Android version.
-- **Interrupted operations:** Insufficient storage, unexpected errors, damaged source files, or interrupted processing may result in incomplete output.
+</div>
 
-### Developer Liability
+## BUILT FOR FIRMWARE WORK
 
-AFFT Toolkit is provided **"AS IS" and "AS AVAILABLE," without warranties of any kind**, to the maximum extent permitted by applicable law.
+AFFT Toolkit brings essential Android firmware operations into one dedicated Android application. Work with supported firmware images, inspect partition structures, manage extracted files, and monitor operations through a unified interface.
 
-The developer and contributors are not responsible for device bricking, bootloops, firmware corruption, failed flashing, data loss, loss of device functionality, or other damages arising from the use, misuse, or inability to use AFFT Toolkit, to the extent permitted by applicable law.
+No need to turn every firmware task into a separate workflow across multiple apps.
 
-Users are solely responsible for selecting firmware files, performing modifications, verifying generated images, and deciding whether to flash or apply the resulting files to a device.
+> **One toolkit. Multiple firmware workflows.**
 
-**AFFT Toolkit does not guarantee that any generated or modified firmware image will work correctly on your device.**
+## CAPABILITIES
 
-Nothing in this disclaimer excludes or limits liability that cannot legally be excluded or limited under applicable law.
+<table>
+<tr>
+<td width="50%" valign="top">
 
-### Safety Recommendations
+### 🖥 Payload Processing
 
-Before performing firmware-related operations:
+Analyze and unpack supported `payload.bin` firmware packages.
 
-1. **Back up your data.** Create and verify an independent backup of important files and device data.
-2. **Keep the original firmware.** Never overwrite your only copy of the original image.
-3. **Verify compatibility.** Check the exact device model, hardware variant, firmware version, and partition requirements.
-4. **Check processing results.** Review logs, validation results, file sizes, and checksums where available.
-5. **Maintain sufficient storage.** Large firmware operations may require substantial free space.
-6. **Avoid interruptions.** Keep the device powered and avoid interrupting operations while files are being processed.
-7. **Understand recovery procedures.** Learn the appropriate recovery method for your device before attempting to flash modified images.
-8. **Do not flash blindly.** A successful repack does not prove that the resulting image is bootable or safe to flash.
+- Payload inspection
+- Extraction workflow
+- Firmware metadata
 
-If you do not understand the potential risks or cannot recover your device from a failed flash, do not flash modified firmware.
+</td>
+<td width="50%" valign="top">
 
----
+### 💻 Super Image Explorer
 
-## 📥 Download
+Inspect supported Android dynamic partition images.
 
-[⬇️ **Download the Latest APK**](https://github.com/soe1hom-arch/AFFT-Toolkit/releases/latest)
+- Super image analysis
+- Partition information
+- Image structure inspection
 
-### Installation
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
 
-1. Download the APK from the official GitHub Releases page.
-2. Open the APK and allow installation from the relevant source if Android requests it.
-3. Launch AFFT Toolkit.
-4. Grant **Manage All Files** access when required.
-5. Select a tool, choose a supported firmware file, and start the desired operation.
+### 🔧 Filesystem Tools
 
-Download releases from trusted sources. Review release notes and verify published checksums when available.
+Work with supported filesystem images and their metadata.
 
----
+- Filesystem inspection
+- Image analysis
+- Extraction support where available
 
-## 🎯 Features
+</td>
+<td width="50%" valign="top">
 
-| Feature | Description |
-|---------|-------------|
-| **Payload Dumper** | Analyze and unpack `payload.bin` OTA firmware using the payload-dumper-go engine, with on-demand SHA-256 calculation. |
-| **Super Image** | Unpack and repack `super.img` using sparse-aware processing with `lpunpack` and `lpmake`. |
-| **Filesystem** | Extract and repack supported EROFS and ext4 images using available filesystem utilities. |
-| **Boot Family** | Unpack and repack supported boot image formats, including `vendor_boot`, using magiskboot. |
-| **Firmware Analysis** | Analyze supported payload, boot, super, and filesystem formats with validation and recommendations. |
-| **Firmware Inspector** | Review project status, analysis results, health indicators, validation findings, and operation history. |
-| **Workspace Projects** | Organize operations into projects with structured directories and chronological history. |
-| **Tools Hub & Navigation** | Navigate between tools using structured routes, Android back-stack support, and `afft://` deep links. |
-| **Repack Anywhere** | Select repack source folders using the built-in browser or Android's system file picker. |
-| **Professional UI** | Consistent headers, numbered steps, and unified dialogs across supported screens. |
-| **Live Status** | Monitor operation status through animated status cards on the Home screen and operation screens. |
-| **Interactive Metadata** | Inspect long paths, hashes, fingerprints, and other metadata through interactive detail sheets. |
-| **AFFT Manager** | Browse, search, sort, copy, move, delete, rename, import, and manage files and folders. |
+### 💿 Boot Image Tools
 
----
+Analyze supported boot-related images.
 
-## 📸 Preview
+- Boot image inspection
+- Metadata analysis
+- Image workflow support
 
-<table border="0" cellpadding="6" align="center">
-  <tr>
-    <td><img src="screenshots/main.png" width="220" alt="Home / Dashboard"></td>
-    <td><img src="screenshots/payload.png" width="220" alt="Payload Dumper"></td>
-    <td><img src="screenshots/super.png" width="220" alt="Super Image"></td>
-  </tr>
-  <tr>
-    <td><img src="screenshots/boot.png" width="220" alt="Boot Image"></td>
-    <td><img src="screenshots/filesystem.png" width="220" alt="Filesystem"></td>
-    <td><img src="screenshots/filemanager.png" width="220" alt="AFFT Manager"></td>
-  </tr>
-  <tr align="center">
-    <td colspan="3"><img src="screenshots/console.png" width="400" alt="Console Output"></td>
-  </tr>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 💽 Firmware Inspector
+
+Review firmware information and validation results.
+
+- Device and build metadata
+- Hashes and identifiers
+- Validation feedback
+
+</td>
+<td width="50%" valign="top">
+
+### 🛠 Repack & Export
+
+Repack supported workflows and access generated output.
+
+- Repacking operations
+- Output to `Download/AFFT`
+- File management through AFFT Manager
+
+</td>
+</tr>
 </table>
 
+### MORE THAN A COLLECTION OF TOOLS
+
+- **Workspace Projects** — organize firmware work in a dedicated workspace.
+- **AFFT Manager** — manage files and generated output.
+- **Console Output** — follow operation logs and diagnostic messages.
+- **Live Status** — monitor task states and engine status.
+- **Interactive Metadata** — inspect long values and detailed information.
+- **Unified Navigation** — access the main toolkit modules from one interface.
+
+> Feature availability depends on the selected image format, supported workflow, and device environment.
+
 ---
 
-## 🗂 Workspace Projects
+## INSIDE AFFT TOOLKIT
 
-Every firmware operation belongs to a **Workspace Project**, helping keep related files, logs, and outputs organized.
+<div align="center">
 
-Default workspace location:
+### THE INTERFACE
+
+Explore the application and its firmware workflows.
+
+</div>
+
+<table>
+<tr>
+<td align="center" width="50%">
+
+<img src="screenshots/main.png" width="100%" alt="AFFT Toolkit Home Screen">
+
+**HOME**
+
+</td>
+<td align="center" width="50%">
+
+<img src="screenshots/payload.png" width="100%" alt="Payload Tools">
+
+**PAYLOAD TOOLS**
+
+</td>
+</tr>
+<tr>
+<td align="center" width="50%">
+
+<img src="screenshots/super.png" width="100%" alt="Super Image Explorer">
+
+**SUPER IMAGE EXPLORER**
+
+</td>
+<td align="center" width="50%">
+
+<img src="screenshots/boot.png" width="100%" alt="Boot Image Tools">
+
+**BOOT TOOLS**
+
+</td>
+</tr>
+<tr>
+<td align="center" width="50%">
+
+<img src="screenshots/filesystem.png" width="100%" alt="Filesystem Inspector">
+
+**FILESYSTEM INSPECTOR**
+
+</td>
+<td align="center" width="50%">
+
+<img src="screenshots/filemanager.png" width="100%" alt="AFFT File Manager">
+
+**FILE MANAGER**
+
+</td>
+</tr>
+</table>
+
+<div align="center">
+
+<img src="screenshots/console.png" width="85%" alt="AFFT Console Output">
+
+**CONSOLE OUTPUT**
+
+</div>
+
+---
+
+## GET STARTED
+
+<div align="center">
+
+### READY TO WORK WITH YOUR FIRMWARE?
+
+Download the latest available APK from the official GitHub Releases page.
+
+<br>
+
+<a href="https://github.com/soe1hom-arch/AFFT-Toolkit/releases/latest">
+  <img src="https://img.shields.io/badge/GET_AFFT_TOOLKIT-DOWNLOAD_LATEST_APK-334155?style=for-the-badge&logo=android&logoColor=white" alt="Download AFFT Toolkit">
+</a>
+
+</div>
+
+### REQUIREMENTS
+
+| Component | Requirement |
+|:--|:--|
+| Operating system | Android 8.0 (API 26) or later |
+| Architecture | ARM64 / AArch64 |
+| RAM | 4 GB minimum; 6 GB or more recommended |
+| Storage | 10 GB or more recommended for firmware operations |
+
+Actual resource requirements depend on the firmware image size and the operation being performed.
+
+### INSTALLATION
+
+1. Open the [latest release](https://github.com/soe1hom-arch/AFFT-Toolkit/releases/latest).
+2. Download the APK asset provided by the release.
+3. Allow installation from the relevant source if Android requests permission.
+4. Install and open AFFT Toolkit.
+5. Review the workspace and available tools before processing firmware.
+
+---
+
+## WORKSPACE
+
+AFFT Toolkit uses a dedicated application workspace:
 
 ```text
 /storage/emulated/0/Android/data/com.afft.app/files/workspace/
-└── <ProjectName>/
-    ├── metadata.json
-    ├── logs/
-    ├── output/
-    ├── temp/
-    ├── cache/
-    ├── payload/
-    ├── boot/
-    ├── super/
-    ├── filesystem/
-    ├── apk/
-    └── reports/
 ```
 
-| Directory | Purpose |
-|-----------|---------|
-| `metadata.json` | Project information, device details, firmware type, status, and health information. |
-| `logs/` | Operation logs and diagnostic information. |
-| `output/` | Extracted, processed, or repacked results. |
-| `temp/` | Temporary working files. |
-| `cache/` | Cached processing data. |
-| `payload/` | Payload-related working files. |
-| `boot/` | Boot image working files. |
-| `super/` | Super image working files. |
-| `filesystem/` | Filesystem image working files. |
-| `apk/` | APK-related working files. |
-| `reports/` | Analysis reports. |
+| Directory / Resource | Purpose |
+|:--|:--|
+| Workspace | Working area for supported firmware operations |
+| Input | Source files used by the applicable workflow |
+| Output | Generated files, depending on the operation |
 
-Workspace projects are designed to persist across application restarts and configuration changes. Missing directories are recreated automatically when required.
-
-**Note:** Workspace persistence is not a substitute for an independent backup. Store important source files and results separately.
+Directory names and available resources may vary by version and workflow. Repacked output is copied to `Download/AFFT`; use AFFT Manager when you need to manage or move the resulting files.
 
 ---
 
-## 📋 Requirements
+## IMPORTANT — READ BEFORE USE
 
-| Requirement | Specification |
-|-------------|---------------|
-| **Android** | 8.0+ (API 26) |
-| **Architecture** | ARM64 only |
-| **RAM** | 4 GB minimum; 6 GB+ recommended |
-| **Storage** | At least 10 GB of free space recommended for large firmware files |
-| **Permissions** | `MANAGE_EXTERNAL_STORAGE`, foreground service, and `POST_NOTIFICATIONS` where required |
-
-Actual resource requirements depend on firmware size, image format, device capabilities, and the operation being performed.
-
----
-
-## 🔐 Privacy & Backup
-
-AFFT Toolkit excludes its working data from Android Auto Backup and device-transfer backups through the configured backup rules.
-
-The excluded data includes:
-
-- `afft_work/` — input files, temporary data, logs, extraction files, and repack results.
-- `workspace/` — firmware workspace projects.
-- Deployed binaries — binaries intended to be re-extracted from application assets.
-
-These exclusions are configured through:
-
-- `res/xml/data_extraction_rules.xml` for Android 12 and later.
-- `res/xml/backup_rules.xml` for older Android versions.
-
-Firmware files and workspace data are excluded from the configured Android automatic backup process.
-
-**Important:** Backup exclusions do not protect data against every form of loss. Maintain independent backups of important files.
+> [!CAUTION]
+> **Firmware modification carries real risks.**
+>
+> AFFT Toolkit is provided on an **"AS IS" and "AS AVAILABLE"** basis, without warranties of any kind, to the extent permitted by applicable law.
+>
+> Firmware images, partition layouts, boot images, and other low-level components can damage a device or render it unbootable when handled incorrectly.
+>
+> By using this application, you acknowledge that firmware operations are performed at your own risk. The developer is not responsible for device bricking, bootloops, corrupted firmware, failed flashing, data loss, or other damage resulting from use or misuse of the application, to the extent permitted by applicable law.
+>
+> **Before proceeding:**
+>
+> - Back up important data and firmware partitions.
+> - Verify the device model and firmware compatibility.
+> - Keep a recoverable copy of the original image.
+> - Understand the operation before modifying or flashing any image.
+> - Do not assume that a successful repack guarantees a bootable image.
+>
+> AFFT Toolkit does not guarantee compatibility with every device, image format, firmware package, or Android version.
 
 ---
 
-## 🙏 Credits
+## PRIVACY & BACKUP
 
-AFFT Toolkit uses or incorporates third-party tools and libraries for firmware processing and application presentation.
+AFFT Toolkit is designed for local firmware workflows on the Android device.
 
-| Component | Source |
-|-----------|--------|
-| **payload-dumper-go** | [ssut/payload-dumper-go](https://github.com/ssut/payload-dumper-go) |
-| **lpmake / lpunpack** | [AOSP liblp](https://android.googlesource.com/platform/system/core/) |
-| **magiskboot** | [topjohnwu/Magisk](https://github.com/topjohnwu/Magisk) |
-| **simg2img** | [Android Open Source Project](https://android.googlesource.com/platform/system/core/) |
-| **mkfs.erofs / extract.erofs** | [erofs-utils](https://git.kernel.org/pub/scm/linux/kernel/git/xiang/erofs-utils.git) |
-| **make_ext4fs / debugfs** | [Android Open Source Project](https://android.googlesource.com/platform/system/core/) |
-| **liblzma / libzstd** | [Tukaani Project — XZ](https://github.com/tukaani-project/xz) / [Facebook Zstandard](https://github.com/facebook/zstd) |
-| **Inter** | [rsms/inter](https://github.com/rsms/inter) — OFL-1.1 |
-| **JetBrains Mono** | [JetBrains/JetBrainsMono](https://github.com/JetBrains/JetBrainsMono) — OFL-1.1 |
+- Firmware processing uses local device resources.
+- Generated files may contain sensitive device or firmware information.
+- Keep backups in a secure location.
+- Android backup behavior may exclude application data or files; do not rely on device backup alone to preserve your workspace.
 
-Third-party components remain subject to their respective licenses and terms. See the relevant upstream projects and repository notices for details.
+Refer to the application's current privacy policy and repository documentation for the applicable details.
 
----
+## OPEN SOURCE & ATTRIBUTION
 
-## 👨‍💻 Developer
+AFFT Toolkit builds on the Android development ecosystem and may incorporate third-party tools or libraries.
+
+Third-party components remain subject to their respective licenses and attribution requirements. See the project's source code, dependency declarations, and `NOTICE` file for details.
+
+## DEVELOPER
+
+<div align="center">
+
+<img src="https://img.shields.io/badge/DEVELOPED_BY-Soehom-334155?style=for-the-badge" alt="Developed by Soehom">
 
 **Wandi / Soehom (Lucky Man)**
 
-AFFT Toolkit is an independent Android firmware utility project.
+Independent Android developer · Open-source projects
 
-- [Report an Issue](https://github.com/soe1hom-arch/AFFT-Toolkit/issues)
-- [GitHub Discussions](https://github.com/soe1hom-arch/AFFT-Toolkit/discussions)
-- [Source Repository](https://github.com/soe1hom-arch/AFFT-Toolkit)
+[GitHub Profile](https://github.com/soe1hom-arch)
 
-When reporting an issue, include the application version, Android version, device architecture, relevant logs, and steps to reproduce the problem. Remove personal or sensitive information before sharing logs.
+</div>
 
----
-
-## 📄 License
+## LICENSE
 
 AFFT Toolkit is distributed under the **Apache License 2.0**.
 
-Copyright © 2026 Wandi (Soehom-arch).
-
-See [LICENSE](LICENSE) and [NOTICE](NOTICE) for applicable license terms and notices. Third-party binaries, libraries, and assets remain subject to their respective licenses.
+See [`LICENSE`](LICENSE) for the complete license text and [`NOTICE`](NOTICE) for applicable notices.
 
 ---
 
-<p align="center">
-  <strong>AFFT Toolkit</strong><br>
-  Android firmware tools, directly on your device.
-</p>
+<div align="center">
+
+### AFFT TOOLKIT
+
+**Analyze. Unpack. Modify. Repack.**
+
+Built for Android firmware workflows.
+
+[ DOWNLOAD LATEST RELEASE ](https://github.com/soe1hom-arch/AFFT-Toolkit/releases/latest)
+
+<sub>Open source · Android native · Built for firmware work</sub>
+
+</div>
