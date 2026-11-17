@@ -13,19 +13,33 @@ touch "$test_dir/input/empty"
 ln -s nested/file.txt "$test_dir/input/link"
 
 bin="$SRC_DIR/app/src/main/jniLibs/arm64-v8a"
+for target in mkfs.erofs extract.erofs; do
+    git -C "$SRC_DIR" show "HEAD:app/src/main/jniLibs/arm64-v8a/lib$target.so" > "$test_dir/old-$target"
+    chmod 755 "$test_dir/old-$target"
+done
 for compression in lz4hc,9 none; do
-    image="$test_dir/$compression.img"
-    output="$test_dir/$compression"
-    mkdir -p "$output"
     args=()
     if [ "$compression" != none ]; then
         args=(-z "$compression")
     fi
-    qemu-aarch64 "$bin/libmkfs.erofs.so" "${args[@]}" -C 4096 "$image" "$test_dir/input"
-    qemu-aarch64 "$bin/libextract.erofs.so" -i "$image" -x -o "$output" -f
-    extracted="$output/$compression"
-    cmp "$test_dir/input/nested/file.txt" "$extracted/nested/file.txt"
-    cmp "$test_dir/input/compressible.bin" "$extracted/compressible.bin"
-    test -f "$extracted/empty" && test ! -s "$extracted/empty"
-    test "$(readlink "$extracted/link")" = 'nested/file.txt'
+    for maker in old new; do
+        image_dir="$test_dir/$compression-$maker"
+        mkdir -p "$image_dir"
+        image="$image_dir/system.img"
+        mkfs="$test_dir/old-mkfs.erofs"
+        if [ "$maker" = new ]; then mkfs="$bin/libmkfs.erofs.so"; fi
+        qemu-aarch64 "$mkfs" "${args[@]}" -C 4096 "$image" "$test_dir/input"
+        for extractor in old new; do
+            extract="$test_dir/old-extract.erofs"
+            if [ "$extractor" = new ]; then extract="$bin/libextract.erofs.so"; fi
+            output="$image_dir/$extractor"
+            mkdir -p "$output"
+            qemu-aarch64 "$extract" -i "$image" -x -o "$output" -f
+            extracted="$output/system"
+            cmp "$test_dir/input/nested/file.txt" "$extracted/nested/file.txt"
+            cmp "$test_dir/input/compressible.bin" "$extracted/compressible.bin"
+            test -f "$extracted/empty" && test ! -s "$extracted/empty"
+            test "$(readlink "$extracted/link")" = 'nested/file.txt'
+        done
+    done
 done

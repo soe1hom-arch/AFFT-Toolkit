@@ -16,7 +16,7 @@ Semua binary disimpan di `app/src/main/jniLibs/arm64-v8a/` (sebagai
 | `magiskboot` | [Magisk v30.7](https://github.com/topjohnwu/Magisk/tree/e8a58776f1d7bdf852072ad0baa6eceb9a1e4aac) | GPL-3.0-or-later |
 | `make_ext4fs` | Binary identik dengan [rendiix/make_ext4fs](https://github.com/rendiix/make_ext4fs/tree/4b805b4ff0129fb8df553247c1edce2fecfada6e) | Apache-2.0 pada proyek; dependensi memiliki lisensi tersendiri |
 | `debugfs` | [e2fsprogs v1.47.0](https://github.com/tytso/e2fsprogs/tree/25ad8a431331b4d1d444a70b6079456cc612ac40) | GPL-2.0; LGPL-2.0, BSD-style, dan MIT-style untuk library terkait |
-| `mkfs.erofs` / `extract.erofs` | [sekaiacg/erofs-tools v1.8.10-251217](https://github.com/sekaiacg/erofs-tools/releases/tag/v1.8.10-251217) | GPL-2.0-or-later dan lisensi komponen terkait; lihat catatan di bawah |
+| `mkfs.erofs` / `extract.erofs` | [sekaiacg/erofs-tools](https://github.com/sekaiacg/erofs-tools/tree/4f5d6efc225cf90064a8196b1412692fb89e1e69); CI membangun ulang | GPL-2.0-or-later dan lisensi komponen terkait; lihat catatan di bawah |
 | `liblzma` / `libzstd` (via cgo) | [XZ 5.4.6](https://github.com/tukaani-project/xz/tree/v5.4.6) / [zstd 1.5.5](https://github.com/facebook/zstd/tree/v1.5.5) | Domain publik / BSD-3-Clause; binary lama belum terbukti cocok dengan versi ini |
 
 Catatan:
@@ -34,7 +34,8 @@ Catatan:
 
 ## EROFS Tools
 
-Binary `libmkfs.erofs.so` dan `libextract.erofs.so` identik dengan
+Binary lama `libmkfs.erofs.so` dan `libextract.erofs.so` yang tersimpan di
+repositori identik dengan
 `mkfs.erofs` dan `extract.erofs` dalam
 [rilis Android arm64 v1.8.10-251217](https://github.com/sekaiacg/erofs-tools/releases/tag/v1.8.10-251217).
 SHA-256 masing-masing:
@@ -58,13 +59,24 @@ belum diverifikasi lengkap; kecocokan binary rilis tidak membuktikan build ulang
 identik. Log build upstream telah kedaluwarsa sehingga rincian build dan cache
 tidak dapat dipastikan dari log.
 
+Workflow CI sekarang membangun kedua executable dari commit tersebut dan
+submodule yang dipin menggunakan
+[`tools/build_erofs.sh`](https://github.com/soe1hom-arch/AFFT-Toolkit/blob/56e7cfffa14693fb8e996e2747ecf10b13160d46/tools/build_erofs.sh).
+Perubahan build disediakan sebagai
+[`tools/erofs-no-fuse.patch`](https://github.com/soe1hom-arch/AFFT-Toolkit/blob/56e7cfffa14693fb8e996e2747ecf10b13160d46/tools/erofs-no-fuse.patch);
+source upstream juga mengandung patch `libselinux` yang diterapkan saat build.
+Patch AFFT menghilangkan libfuse dari link kedua executable, dan skrip
+memeriksa perintah link. Build dan pengujian round-trip sederhana dengan ARM64
+QEMU berhasil; ini bukan pengujian pada perangkat Android. Build Gradle langsung
+tanpa skrip tersebut masih menggunakan binary lama di repositori.
+
 Revisi semua submodule yang terdaftar pada commit build ditemukan di repositori
 publik; untuk submodule AOSP, commit juga ditemukan di mirror GitHub. File
 `assets/legal/EROFS-DEPENDENCIES.txt` menyertakan lisensi dan notis dari
 revisi input build, termasuk lz4, XZ, zstd, zlib, PCRE2, libselinux, libc++,
 xxHash, komponen AOSP, dan header UUID e2fsprogs.
 
-Konfigurasi upstream juga mencantumkan **libfuse sebagai library statis**.
+Konfigurasi upstream untuk binary lama mencantumkan **libfuse sebagai library statis**.
 Direktori `lib` dan `include` libfuse tersedia dengan LGPL-2.1; teks LGPL-2.1
 disertakan di `assets/legal/LGPL-2.1.txt`. Penelusuran statis source
 `mkfs`, `extract`, `lib`, dan `include` pada commit build tidak menemukan
@@ -72,10 +84,10 @@ pemanggilan fungsi `fuse_*` atau include header FUSE. Ini bukan bukti isi
 binary yang di-strip atau seluruh input build yang sebenarnya.
 Jika masuk, pemenuhan kewajiban LGPL untuk penggantian library/relink harus
 dipastikan; source saja dan notis ini bukan bukti kewajiban itu telah dipenuhi.
-Sampai build, source, dan kewajiban distribusi diverifikasi, jangan anggap
-kepatuhan EROFS sudah lengkap.
+Kewajiban distribusi binary lama tetap perlu diverifikasi; jangan anggap
+kepatuhannya sudah lengkap.
 
-Binary EROFS memiliki penanda NDK Android API 31, sesuai skrip build upstream;
+Binary EROFS lama dan build CI menargetkan Android API 31, sesuai upstream;
 kompatibilitasnya dengan Android API 26–30 yang didukung aplikasi belum
 diverifikasi.
 

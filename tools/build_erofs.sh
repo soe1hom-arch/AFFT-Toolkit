@@ -14,7 +14,8 @@ git -C "$EROFS_DIR" fetch --depth=1 origin "$EROFS_COMMIT"
 git -C "$EROFS_DIR" checkout --detach FETCH_HEAD
 test "$(git -C "$EROFS_DIR" rev-parse HEAD)" = "$EROFS_COMMIT"
 git -C "$EROFS_DIR" submodule update --init --recursive --depth=1
-if git -C "$EROFS_DIR" submodule status --recursive | grep -qE '^[-+U]'; then
+submodule_status="$(git -C "$EROFS_DIR" submodule status --recursive)"
+if grep -qE '^[-+U]' <<< "$submodule_status"; then
     echo "ERROR: EROFS submodule checkout does not match pinned revisions." >&2
     exit 1
 fi
@@ -33,6 +34,7 @@ cmake --build "$EROFS_DIR/out" --parallel "$(nproc)" --target mkfs.erofs extract
 
 for target in mkfs.erofs extract.erofs; do
     link_file="$EROFS_DIR/out/erofs-tools/CMakeFiles/$target.dir/link.txt"
+    test -r "$link_file"
     if grep -Fq 'fuse_static' "$link_file"; then
         echo "ERROR: $target links libfuse unexpectedly." >&2
         exit 1
