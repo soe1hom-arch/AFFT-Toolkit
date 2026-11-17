@@ -19,8 +19,9 @@ for compression in lz4hc,9 none; do
     mkdir -p "$output"
     qemu-aarch64 "$bin/libmkfs.erofs.so" -z "$compression" -C 4096 "$image" "$test_dir/input"
     qemu-aarch64 "$bin/libextract.erofs.so" -i "$image" -x -o "$output" -f
-    cmp "$test_dir/input/nested/file.txt" "$output/nested/file.txt"
-    cmp "$test_dir/input/compressible.bin" "$output/compressible.bin"
-    test -f "$output/empty" && test ! -s "$output/empty"
-    test "$(readlink "$output/link")" = 'nested/file.txt'
+    extracted="$output/$compression"
+    cmp "$test_dir/input/nested/file.txt" "$extracted/nested/file.txt"
+    cmp "$test_dir/input/compressible.bin" "$extracted/compressible.bin"
+    test -f "$extracted/empty" && test ! -s "$extracted/empty"
+    test "$(readlink "$extracted/link")" = 'nested/file.txt'
 done
