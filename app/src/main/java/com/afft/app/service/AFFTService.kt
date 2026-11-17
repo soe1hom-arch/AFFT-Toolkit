@@ -1477,7 +1477,7 @@ class AFFTService(
                             outputFile,
                             srcDir,
                             fileContextsPath,
-                            "none",
+                            null,
                         )
                     if (erofsOk) {
                         addLog("[OK] Repacked EROFS (uncompressed): ${outputFile.name}")
@@ -1562,7 +1562,7 @@ class AFFTService(
      * Helper untuk menjalankan mkfs.erofs dengan parameter kompresi spesifik.
      * Mengikuti standar Google:
      *   -z lz4hc,9 -C 4096 untuk kompresi tinggi (standar Android modern)
-     *   -z none untuk uncompressed EROFS
+     *   tanpa -z untuk uncompressed EROFS
      *   --file-contexts=<path> untuk menyertakan konteks keamanan
      */
     private suspend fun repackErofs(
@@ -1570,18 +1570,15 @@ class AFFTService(
         outputFile: File,
         srcDir: File,
         fileContextsPath: String?,
-        compression: String,
+        compression: String?,
     ): Boolean {
         if (outputFile.exists()) outputFile.delete()
 
-        val cmdArgs =
-            mutableListOf(
-                mkfsErofs,
-                "-z",
-                compression,
-                "-C",
-                "4096",
-            )
+        val cmdArgs = mutableListOf(mkfsErofs)
+        if (compression != null) {
+            cmdArgs.addAll(listOf("-z", compression))
+        }
+        cmdArgs.addAll(listOf("-C", "4096"))
         if (fileContextsPath != null) {
             cmdArgs.add("--file-contexts=$fileContextsPath")
         }
@@ -1591,11 +1588,11 @@ class AFFTService(
         val compressionLabel =
             when (compression) {
                 "lz4hc,9" -> "lz4hc level 9"
-                "none" -> "tanpa kompresi"
+                null -> "tanpa kompresi"
                 else -> compression
             }
         addLog(
-            "[INFO] Menjalankan mkfs.erofs ($compressionLabel) dengan flags: -z $compression -C 4096${if (fileContextsPath != null) " --file-contexts=$fileContextsPath" else ""}",
+            "[INFO] Menjalankan mkfs.erofs ($compressionLabel) dengan flags: ${cmdArgs.drop(1).dropLast(2).joinToString(" ")}",
         )
 
         val result =

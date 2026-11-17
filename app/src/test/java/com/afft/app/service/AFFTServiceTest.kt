@@ -65,6 +65,28 @@ class AFFTServiceTest {
 
     private fun newService(): AFFTService = AFFTService(FakeContext(tmp.root))
 
+    @Test
+    fun repackFilesystem_compressionFailureFallsBackWithoutCompressionFlag() = runBlocking {
+        val binary = File(tmp.root, "libs/libmkfs.erofs.so")
+        binary.parentFile!!.mkdirs()
+        binary.writeText(
+            """
+            #!/bin/sh
+            if [ "${'$'}1" = "-z" ]; then exit 1; fi
+            [ "${'$'}1" = "-C" ] && [ "${'$'}2" = "4096" ] || exit 2
+            printf 'image' > "${'$'}3"
+            """.trimIndent(),
+        )
+        check(binary.setExecutable(true))
+        val source = File(tmp.root, "filesystem").apply { mkdirs() }
+        File(source, "file").writeText("data")
+
+        val result = newService().repackFilesystem("system", source.absolutePath)
+
+        assertTrue(result.ok)
+        assertTrue(result.message.contains("uncompressed"))
+    }
+
     // ---------------- error handling ----------------
 
     @Test
