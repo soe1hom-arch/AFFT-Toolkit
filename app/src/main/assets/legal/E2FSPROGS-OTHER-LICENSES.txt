@@ -1,0 +1,66 @@
+e2fsprogs v1.47.0 — lib/uuid/COPYING
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+1. Redistributions of source code must retain the above copyright
+   notice, and the entire permission notice in its entirety,
+   including the disclaimer of warranties.
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+3. The name of the author may not be used to endorse or promote
+   products derived from this software without specific prior
+   written permission.
+
+THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, ALL OF
+WHICH ARE HEREBY DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+USE OF THIS SOFTWARE, EVEN IF NOT ADVISED OF THE POSSIBILITY OF SUCH
+DAMAGE.
+
+
+e2fsprogs v1.47.0 — lib/ss/mit-sipb-copyright.h
+
+/*
+
+Copyright 1987 by the Student Information Processing Board
+	of the Massachusetts Institute of Technology
+
+Permission to use, copy, modify, and distribute this software
+and its documentation for any purpose and without fee is
+hereby granted, provided that the above copyright notice
+appear in all copies and that both that copyright notice and
+this permission notice appear in supporting documentation,
+and that the names of M.I.T. and the M.I.T. S.I.P.B. not be
+used in advertising or publicity pertaining to distribution
+of the software without specific, written prior permission.
+M.I.T. and the M.I.T. S.I.P.B. make no representations about
+the suitability of this software for any purpose.  It is
+provided "as is" without express or implied warranty.
+
+*/
+
+
+
+e2fsprogs v1.47.0 — lib/et/et_name.c license header
+
+/*
+ * Copyright 1987 by MIT Student Information Processing Board
+ *
+ * Permission to use, copy, modify, and distribute this software and
+ * its documentation for any purpose is hereby granted, provided that
+ * the names of M.I.T. and the M.I.T. S.I.P.B. not be used in
+ * advertising or publicity pertaining to distribution of the software
+ * without specific, written prior permission.  M.I.T. and the
+ * M.I.T. S.I.P.B. make no representations about the suitability of
+ * this software for any purpose.  It is provided "as is" without
+ * express or implied warranty.
+ */

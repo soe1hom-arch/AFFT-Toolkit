@@ -1,5 +1,6 @@
 #!/bin/bash
-# Build script: cross-compile payload-dumper-go with CGO + liblzma + libzstd for Android ARM64
+# Build the Apache-2.0 payload-dumper-go source and its native dependencies
+# for Android ARM64. This replaces the unpinned legacy recipe.
 
 set -euo pipefail
 
@@ -8,113 +9,95 @@ set -euo pipefail
 : "${WORK_DIR:=/tmp/payload-dumper-build}"
 
 ARCH="arm64-v8a"
+PAYLOAD_COMMIT="a51234eaead276ff3d8b8c4c439c51c7f46a96a8"
+XZ_VER="5.4.6"
+XZ_SHA256="b92d4e3a438affcf13362a1305cd9d94ed47ddda22e456a42791e630a5644f5c"
+ZSTD_COMMIT="63779c798237346c2b245c546c40b72a5a5913fe"
+GOZSTD_VER="v1.21.1"
 TOOLCHAIN="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64"
 CC="$TOOLCHAIN/bin/aarch64-linux-android21-clang"
 AR="$TOOLCHAIN/bin/llvm-ar"
 RANLIB="$TOOLCHAIN/bin/llvm-ranlib"
-PAYLOAD_REPO="https://github.com/ssut/payload-dumper-go.git"
-
 JNILIBS_DIR="${SRC_DIR}/app/src/main/jniLibs/${ARCH}"
 ASSETS_DIR="${SRC_DIR}/app/src/main/assets/bin"
 mkdir -p "$JNILIBS_DIR" "$ASSETS_DIR" "$WORK_DIR"
 
+if [ "$(go version)" != "go version go1.22.12 linux/amd64" ]; then
+    echo "ERROR: use Go 1.22.12 linux/amd64 to match the bundled binary toolchain." >&2
+    exit 1
+fi
+
 export GOMODCACHE="${WORK_DIR}/go-mod-cache"
 mkdir -p "$GOMODCACHE"
 
-echo "=== [1/6] Building native libraries ==="
-cd "$WORK_DIR"
-
-# --- liblzma.a ---
-LZMA_VER="5.4.6"
+echo "=== Build liblzma (XZ $XZ_VER) ==="
 if [ ! -f "$WORK_DIR/xz-install/lib/liblzma.a" ]; then
-    echo "--- Building liblzma.a (xz $LZMA_VER) ---"
-    [ -f "xz-${LZMA_VER}.tar.xz" ] || curl -sLo "xz-${LZMA_VER}.tar.xz" \
-        "https://github.com/tukaani-project/xz/releases/download/v${LZMA_VER}/xz-${LZMA_VER}.tar.xz"
-    rm -rf "xz-${LZMA_VER}"
-    tar -xf "xz-${LZMA_VER}.tar.xz"
-    cd "xz-${LZMA_VER}"
+    cd "$WORK_DIR"
+    curl --fail --location --silent --show-error \
+        "https://github.com/tukaani-project/xz/releases/download/v${XZ_VER}/xz-${XZ_VER}.tar.xz" \
+        -o "xz-${XZ_VER}.tar.xz"
+    echo "$XZ_SHA256  xz-${XZ_VER}.tar.xz" | sha256sum --check
+    tar -xf "xz-${XZ_VER}.tar.xz"
+    cd "xz-${XZ_VER}"
     ./configure --host=aarch64-linux-android \
         --prefix="$WORK_DIR/xz-install" CC="$CC" AR="$AR" \
         --enable-static --disable-shared \
         --disable-xz --disable-xzdec --disable-lzmadec \
         --disable-lzmainfo --disable-lzma-links \
         --disable-scripts --disable-doc --with-pic
-    make -j$(nproc)
+    make -j"$(nproc)"
     make install
-    echo "=== liblzma.a built ==="
-else
-    echo "=== liblzma.a cached ==="
 fi
 
-# --- libzstd.a ---
+echo "=== Build libzstd @ $ZSTD_COMMIT ==="
 if [ ! -f "$WORK_DIR/zstd-install/lib/libzstd.a" ]; then
-    echo "--- Building libzstd.a ---"
-    rm -rf zstd
-    git clone --depth=1 --branch v1.5.5 https://github.com/facebook/zstd.git
-    cd zstd
-    make clean 2>/dev/null || true
-    CC="$CC" AR="$AR" RANLIB="$RANLIB" make -C lib libzstd.a -j$(nproc)
+    cd "$WORK_DIR"
+    if [ ! -d zstd/.git ]; then
+        git clone https://github.com/facebook/zstd.git zstd
+    fi
+    git -C zstd checkout --detach "$ZSTD_COMMIT"
+    if [ "$(git -C zstd rev-parse HEAD)" != "$ZSTD_COMMIT" ]; then
+        echo "ERROR: zstd source revision mismatch." >&2
+        exit 1
+    fi
+    CC="$CC" AR="$AR" RANLIB="$RANLIB" \
+        make -C zstd/lib -j"$(nproc)" libzstd.a
     mkdir -p "$WORK_DIR/zstd-install/lib"
-    cp lib/libzstd.a "$WORK_DIR/zstd-install/lib/"
-    echo "=== libzstd.a built ==="
-else
-    echo "=== libzstd.a cached ==="
+    cp zstd/lib/libzstd.a "$WORK_DIR/zstd-install/lib/"
 fi
 
-echo "=== [2/6] Fetching payload-dumper-go ==="
-cd "$WORK_DIR"
-if [ -d "payload-dumper-go" ]; then
-    cd payload-dumper-go && git pull && cd ..
-else
-    git clone --depth=1 "$PAYLOAD_REPO"
+echo "=== Fetch payload-dumper-go @ $PAYLOAD_COMMIT ==="
+PAYLOAD_DIR="$WORK_DIR/payload-dumper-go-$PAYLOAD_COMMIT"
+if [ ! -d "$PAYLOAD_DIR/.git" ]; then
+    git clone https://github.com/ssut/payload-dumper-go.git "$PAYLOAD_DIR"
+fi
+git -C "$PAYLOAD_DIR" fetch --depth=1 origin "$PAYLOAD_COMMIT"
+git -C "$PAYLOAD_DIR" checkout --detach "$PAYLOAD_COMMIT"
+if [ -n "$(git -C "$PAYLOAD_DIR" status --porcelain)" ]; then
+    echo "ERROR: payload-dumper-go source tree is modified." >&2
+    exit 1
 fi
 
-echo "=== [3/6] Applying CGO patch (liblzma) ==="
-cd payload-dumper-go
-sed -i '/"github.com\/ulikunitz\/xz"/d' payload.go 2>/dev/null || true
-sed -i 's/xz\.NewReader(teeReader)/newXzReader(teeReader)/g' payload.go 2>/dev/null || true
-go mod edit -droprequire github.com/ulikunitz/xz 2>/dev/null || true
-
-# Only copy cgo_lzma.go if not already present (idempotent)
-if [ ! -f cgo_lzma.go ]; then
-    cp "$SRC_DIR/tools/cgo_lzma.go" ./
+echo "=== Prepare pinned gozstd native archive ==="
+GOZSTD_DIR="$GOMODCACHE/github.com/valyala/gozstd@$GOZSTD_VER"
+mkdir -p "$(dirname "$GOZSTD_DIR")"
+if [ ! -d "$GOZSTD_DIR" ]; then
+    (cd "$PAYLOAD_DIR" && GOMODCACHE="$GOMODCACHE" go mod download "github.com/valyala/gozstd@$GOZSTD_VER")
 fi
+GOZSTD_DIR="$GOMODCACHE/github.com/valyala/gozstd@$GOZSTD_VER"
+cp "$WORK_DIR/zstd-install/lib/libzstd.a" "$GOZSTD_DIR/libzstd_linux_arm64.a"
 
-echo "=== [4/6] go mod tidy ==="
-go mod tidy 2>&1
-
-echo "=== [4b/6] Patching gozstd (replace Linux .a with Android .a) ==="
-GOZSTD_DIR="$GOMODCACHE/github.com/valyala/gozstd@v1.21.1"
-if [ -d "$GOZSTD_DIR" ]; then
-    echo "Found gozstd at $GOZSTD_DIR"
-    chmod -R u+w "$GOZSTD_DIR" 2>/dev/null || true
-    rm -f "$GOZSTD_DIR/libzstd_linux_arm64.a"
-    cp "$WORK_DIR/zstd-install/lib/libzstd.a" "$GOZSTD_DIR/libzstd_linux_arm64.a"
-    echo "=== gozstd patched ==="
-    ls -la "$GOZSTD_DIR/libzstd_"*.a
-else
-    echo "WARNING: gozstd directory not found at $GOZSTD_DIR"
-    echo "Searching in $GOMODCACHE..."
-    find "$GOMODCACHE" -name "gozstd*" -type d -maxdepth 4 2>/dev/null || true
-fi
-
-echo "=== [5/6] Compiling with CGO ==="
-export GO111MODULE=on
+echo "=== Compile for Android ARM64 ==="
+cd "$PAYLOAD_DIR"
 export CGO_ENABLED=1
 export GOOS=android
 export GOARCH=arm64
-export CC="$CC"
+export CC
 export CGO_CFLAGS="-I$WORK_DIR/xz-install/include -O2"
-export CGO_LDFLAGS="-L$WORK_DIR/xz-install/lib -l:liblzma.a -L$WORK_DIR/zstd-install/lib -l:libzstd.a"
+export CGO_LDFLAGS="-L$WORK_DIR/xz-install/lib -l:liblzma.a"
+go build -mod=readonly -ldflags='-s -w' -o payload-dumper-go .
 
-go build -ldflags='-s -w' -o libpayload-dumper-go.so .
-
-echo "=== [6/6] Copying binary ==="
-file libpayload-dumper-go.so
-cp libpayload-dumper-go.so "$JNILIBS_DIR/libpayload-dumper-go.so"
-cp libpayload-dumper-go.so "$ASSETS_DIR/payload-dumper-go"
-chmod 755 "$JNILIBS_DIR/libpayload-dumper-go.so" "$ASSETS_DIR/payload-dumper-go"
-
-echo "=== DONE ==="
-ls -lh "$JNILIBS_DIR/libpayload-dumper-go.so"
-ls -lh "$ASSETS_DIR/payload-dumper-go"
+file payload-dumper-go
+install -m 755 payload-dumper-go "$JNILIBS_DIR/libpayload-dumper-go.so"
+install -m 755 payload-dumper-go "$ASSETS_DIR/payload-dumper-go"
+echo "=== payload-dumper-go DONE ==="

@@ -56,7 +56,12 @@ fun AboutLegalContent(
                 "NOTICE" to "legal/NOTICE",
                 "Third-Party" to "legal/THIRD_PARTY_NOTICES.md",
                 "Apache-2.0" to "legal/APACHE-2.0.txt",
+                "GPL-2.0" to "legal/GPL-2.0.txt",
                 "GPL-3.0" to "legal/GPL-3.0.txt",
+                "LGPL-2.0" to "legal/LGPL-2.0.txt",
+                "e2fsprogs deps" to "legal/E2FSPROGS-OTHER-LICENSES.txt",
+                "XZ / zstd" to "legal/NATIVE-COMPRESSION-LICENSES.txt",
+                "Payload Go" to "legal/PAYLOAD-GO-DEPENDENCIES.txt",
                 "OFL-1.1 Fonts" to "legal/OFL-1.1.txt",
             )
         }

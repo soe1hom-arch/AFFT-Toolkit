@@ -44,6 +44,27 @@ jobs:
         with:
           gradle-version: '8.14.2'
 
+      - name: Set up Android SDK and NDK
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+
+      - name: Install Android NDK
+        run: sdkmanager --install "ndk;27.2.12479018"
+
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y autoconf automake build-essential libtool pkg-config
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: '1.22.12'
+
+      - name: Build licensed native tools from pinned sources
+        env:
+          SRC_DIR: ${{ github.workspace }}
+          NDK_DIR: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
+        run: bash tools/build_licensed_binaries.sh
+
+
       - name: Build APK with Gradle
         run: ./gradlew assembleDebug
 

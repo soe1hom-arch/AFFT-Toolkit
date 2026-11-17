@@ -309,13 +309,14 @@ AFFT Toolkit uses or incorporates third-party tools and libraries for firmware p
 
 | Component | Source |
 |---|---|
-| **payload-dumper-go** | [ssut/payload-dumper-go](https://github.com/ssut/payload-dumper-go) |
+| **payload-dumper-go** | [ssut/payload-dumper-go (Apache-2.0)](https://github.com/ssut/payload-dumper-go/tree/a51234eaead276ff3d8b8c4c439c51c7f46a96a8) |
 | **lpmake / lpunpack** | [AOSP liblp](https://android.googlesource.com/platform/system/core/) |
 | **magiskboot** | [topjohnwu/Magisk](https://github.com/topjohnwu/Magisk) |
 | **simg2img** | [AOSP](https://android.googlesource.com/platform/system/core/) |
-| **mkfs.erofs / extract.erofs** | [erofs-utils](https://git.kernel.org/pub/scm/linux/kernel/git/xiang/erofs-utils.git) |
-| **make_ext4fs / debugfs** | [AOSP](https://android.googlesource.com/platform/system/core/) |
-| **liblzma / libzstd** | [XZ](https://github.com/tukaani-project/xz) / [Zstandard](https://github.com/facebook/zstd) |
+| **mkfs.erofs / extract.erofs** | [EROFS Tools release](https://github.com/sekaiacg/erofs-tools/releases/tag/v1.8.10-251217) |
+| **debugfs** | [e2fsprogs v1.47.0](https://github.com/tytso/e2fsprogs/tree/25ad8a431331b4d1d444a70b6079456cc612ac40), built from pinned source in CI |
+| **make_ext4fs** | Binary provenance not verified; see third-party notices |
+| **liblzma / libzstd** | [XZ 5.4.6](https://github.com/tukaani-project/xz/tree/v5.4.6) / [Zstandard 1.5.5](https://github.com/facebook/zstd/tree/v1.5.5) |
 | **Inter** | [rsms/inter](https://github.com/rsms/inter) — OFL-1.1 |
 | **JetBrains Mono** | [JetBrainsMono](https://github.com/JetBrains/JetBrainsMono) — OFL-1.1 |
 
@@ -327,7 +328,7 @@ Third-party components, binaries, and assets remain subject to their respective 
 
 AFFT Toolkit builds on the Android development ecosystem and may incorporate third-party tools or libraries.
 
-Third-party components remain subject to their respective licenses and attribution requirements. See the project's source code, dependency declarations, and [`NOTICE`](NOTICE) file for details.
+Third-party components remain subject to their respective licenses and attribution requirements. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for known sources and unresolved binary provenance.
 
 ## `DEVELOPER`
 

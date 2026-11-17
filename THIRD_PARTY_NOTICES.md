@@ -10,14 +10,14 @@ Semua binary disimpan di `app/src/main/jniLibs/arm64-v8a/` (sebagai
 
 | Binary | Sumber | Lisensi |
 |--------|--------|---------|
-| `payload-dumper-go` | [ssut/payload-dumper-go](https://github.com/ssut/payload-dumper-go) | GPL-3.0 |
+| `payload-dumper-go` | [ssut/payload-dumper-go](https://github.com/ssut/payload-dumper-go/tree/a51234eaead276ff3d8b8c4c439c51c7f46a96a8) | Apache-2.0 upstream; binary lama tidak terbukti dibangun dari source bersih, CI rebuild |
 | `lpmake` / `lpunpack` | [AOSP system/core (liblp)](https://android.googlesource.com/platform/system/core/) | Apache-2.0 |
 | `simg2img` | [AOSP system/core (libsparse)](https://android.googlesource.com/platform/system/core/) | Apache-2.0 |
 | `magiskboot` | [Magisk v30.7](https://github.com/topjohnwu/Magisk/tree/e8a58776f1d7bdf852072ad0baa6eceb9a1e4aac) | GPL-3.0-or-later |
-| `make_ext4fs` / `debugfs` | [AOSP system/core](https://android.googlesource.com/platform/system/core/) | Apache-2.0 |
-| `mkfs.erofs` / `extract.erofs` | [erofs-utils](https://git.kernel.org/pub/scm/linux/kernel/git/xiang/erofs-utils.git) | GPL-2.0 |
-| `liblzma` (via cgo) | [tukaani-project/xz](https://github.com/tukaani-project/xz) | 0BSD |
-| `libzstd` (via cgo) | [facebook/zstd](https://github.com/facebook/zstd) | BSD-3-Clause |
+| `make_ext4fs` | Asal binary belum diverifikasi | Belum diverifikasi |
+| `debugfs` | [e2fsprogs v1.47.0](https://github.com/tytso/e2fsprogs/tree/25ad8a431331b4d1d444a70b6079456cc612ac40) | GPL-2.0; LGPL-2.0, BSD-style, dan MIT-style untuk library terkait |
+| `mkfs.erofs` / `extract.erofs` | [sekaiacg/erofs-tools v1.8.10-251217](https://github.com/sekaiacg/erofs-tools/releases/tag/v1.8.10-251217) | GPL-2.0-or-later dan lisensi komponen terkait; lihat catatan di bawah |
+| `liblzma` / `libzstd` (via cgo) | [XZ 5.4.6](https://github.com/tukaani-project/xz/tree/v5.4.6) / [zstd 1.5.5](https://github.com/facebook/zstd/tree/v1.5.5) | Domain publik / BSD-3-Clause; binary lama belum terbukti cocok dengan versi ini |
 
 Catatan:
 
@@ -27,6 +27,60 @@ Catatan:
 - Jika Anda mendistribusikan APK yang mengandung binary GPL (mis. GPL-3.0),
   pastikan memenuhi kewajiban lisensi GPL, termasuk menyediakan source code
   yang sesuai.
+- CI untuk build APK membangun `debugfs` dari e2fsprogs v1.47.0 dengan
+  `tools/build_licensed_binaries.sh`. Binary lama di repositori belum terbukti
+  berasal dari source tersebut; build CI berikutnya menggantinya sebelum APK
+  dibuat.
+
+## EROFS Tools
+
+Binary `libmkfs.erofs.so` dan `libextract.erofs.so` identik dengan
+`mkfs.erofs` dan `extract.erofs` dalam
+[rilis Android arm64 v1.8.10-251217](https://github.com/sekaiacg/erofs-tools/releases/tag/v1.8.10-251217).
+SHA-256 masing-masing:
+
+- `mkfs.erofs`: `e724b80d259d6c2947b9374a668eb5a09e5a8e4400ba6708aa5605a52e6adfb8`
+- `extract.erofs`: `13fa27c5626766607e8ce5c58b1ba1710709cea732d8d380a57449db39b2eae0`
+
+Tag rilis menunjuk ke commit `7274417816e3adfe0cd6d4a8ff194ec5f41268f4`.
+Sumber, `.gitmodules`, dan skrip build tersedia pada commit tersebut; clone
+dan checkout commit itu, lalu jalankan `git submodule update --init --recursive`.
+Menurut [COPYING upstream](https://github.com/sekaiacg/erofs-tools/blob/7274417816e3adfe0cd6d4a8ff194ec5f41268f4/COPYING),
+sebagian file library tersedia dengan pilihan GPL-2.0-or-later atau Apache-2.0,
+sementara file lain umumnya GPL-2.0-or-later kecuali dinyatakan lain. Teks
+GPL-2.0 disertakan di `assets/legal/GPL-2.0.txt`. Dependensi dan hasil build
+belum diverifikasi lengkap; kecocokan binary rilis tidak membuktikan build ulang
+identik atau bahwa semua source code yang diperlukan telah tersedia.
+
+## debugfs
+
+`libdebugfs.so` yang saat ini tersimpan di repositori memiliki SHA-256
+`ce04079ba2c99963e069b8cebc358109cf33e558c391af06921a99d7355fa035`
+dan memuat penanda e2fsprogs 1.47.0. [Notis upstream](https://github.com/tytso/e2fsprogs/blob/25ad8a431331b4d1d444a70b6079456cc612ac40/NOTICE)
+menyatakan utilitas berlisensi GPL-2.0, `lib/ext2fs` dan `lib/e2p` LGPL-2.0,
+`lib/uuid` BSD-style, serta `lib/et` dan `lib/ss` MIT-style. Teks lisensi dan
+notis terkait ada di `assets/legal/`. Binary lama belum terbukti berasal dari
+source upstream. Workflow build membangunnya ulang dari commit
+`25ad8a431331b4d1d444a70b6079456cc612ac40` sebelum membuat APK; jangan
+mendistribusikan binary yang tersimpan dengan mengandalkan notis itu saja.
+
+## payload-dumper-go
+
+Metadata binary menunjukkan modul upstream pada commit
+[`a51234eaead276ff3d8b8c4c439c51c7f46a96a8`](https://github.com/ssut/payload-dumper-go/tree/a51234eaead276ff3d8b8c4c439c51c7f46a96a8)
+dan `vcs.modified=true`. Lisensi upstream pada commit tersebut adalah
+Apache-2.0. Binary mencatat Go 1.22.12, `CGO_ENABLED=1`, liblzma 5.4.6,
+zstd 1.5.5, serta versi modul Go dalam metadata. Namun, binary tidak dapat
+dibuktikan berasal dari source bersih pada commit tersebut.
+`tools/build_payload_dumper.sh` mem-pin source ke revisi tersebut dan
+membangun ulang dari working tree bersih, dengan versi native XZ/zstd yang
+tercatat pada metadata binary.
+
+Notis lisensi untuk dependensi Go disertakan di
+`assets/legal/PAYLOAD-GO-DEPENDENCIES.txt`; lisensi XZ dan zstd ada di
+`assets/legal/NATIVE-COMPRESSION-LICENSES.txt`. Binary lama yang tersimpan
+belum terbukti dapat direproduksi, tetapi workflow build membuat binary baru
+dari source yang dipin sebelum mengemas APK.
 
 ## MagiskBoot v30.7
 
