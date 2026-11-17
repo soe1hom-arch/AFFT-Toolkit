@@ -27,9 +27,10 @@ Catatan:
 - Jika Anda mendistribusikan APK yang mengandung binary GPL (mis. GPL-3.0),
   pastikan memenuhi kewajiban lisensi GPL, termasuk menyediakan source code
   yang sesuai.
-- Workflow CI dikonfigurasi untuk membangun `debugfs` dari e2fsprogs v1.47.0
-  dengan `tools/build_licensed_binaries.sh`, tetapi belum diuji. Binary lama
-  di repositori belum terbukti berasal dari source tersebut.
+- Workflow CI membangun `debugfs` dari e2fsprogs v1.47.0 dengan
+  `tools/build_licensed_binaries.sh`. Build pada branch validasi telah
+  berhasil, tetapi fungsi binary pada perangkat Android belum diuji. Binary
+  lama di repositori belum terbukti berasal dari source tersebut.
 
 ## EROFS Tools
 
@@ -102,8 +103,8 @@ menyatakan utilitas berlisensi GPL-2.0, `lib/ext2fs` dan `lib/e2p` LGPL-2.0,
 notis terkait ada di `assets/legal/`. Binary lama belum terbukti berasal dari
 source upstream. Workflow build membangunnya ulang dari commit
 `25ad8a431331b4d1d444a70b6079456cc612ac40` sebelum membuat APK, tetapi
-workflow tersebut belum diuji; jangan mendistribusikan binary yang tersimpan
-dengan mengandalkan notis itu saja.
+binary hasilnya belum diuji pada perangkat Android; jangan mendistribusikan
+binary lama yang tersimpan dengan mengandalkan notis itu saja.
 
 ## payload-dumper-go
 
@@ -123,7 +124,8 @@ Notis lisensi untuk dependensi Go disertakan di
 `assets/legal/PAYLOAD-GO-DEPENDENCIES.txt`; lisensi XZ dan zstd ada di
 `assets/legal/NATIVE-COMPRESSION-LICENSES.txt`. Binary lama yang tersimpan
 belum terbukti dapat direproduksi. Workflow dikonfigurasi untuk membuat binary
-baru dari source yang dipin sebelum mengemas APK, tetapi belum diuji.
+baru dari source yang dipin sebelum mengemas APK. Build pada branch validasi
+berhasil, tetapi binary hasilnya belum diuji pada perangkat Android.
 
 ## MagiskBoot v30.7
 
