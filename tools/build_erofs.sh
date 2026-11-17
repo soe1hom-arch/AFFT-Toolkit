@@ -22,7 +22,7 @@ git -C "$EROFS_DIR" apply "$SRC_DIR/tools/erofs-no-fuse.patch"
 
 cmake -S "$EROFS_DIR/build/cmake" -B "$EROFS_DIR/out" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DANDROID_PLATFORM=android-26 \
+    -DANDROID_PLATFORM=android-31 \
     -DANDROID_ABI=arm64-v8a \
     -DANDROID_STL=none \
     -DCMAKE_TOOLCHAIN_FILE="$NDK_DIR/build/cmake/android.toolchain.cmake" \
