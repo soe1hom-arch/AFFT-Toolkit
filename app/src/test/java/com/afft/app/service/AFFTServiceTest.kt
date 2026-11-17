@@ -65,6 +65,53 @@ class AFFTServiceTest {
 
     private fun newService(): AFFTService = AFFTService(FakeContext(tmp.root))
 
+    private fun fakeDebugfs(diagnostic: String) {
+        val binary = File(tmp.root, "libs/libdebugfs.so")
+        binary.parentFile!!.mkdirs()
+        binary.writeText(
+            """
+            #!/bin/sh
+            set -- ${'$'}2
+            mkdir -p "${'$'}3"
+            printf 'data' > "${'$'}3/file"
+            printf '%s\n' 'debugfs 1.47.0 (5-Feb-2023)' >&2
+            $diagnostic
+            exit 0
+            """.trimIndent(),
+        )
+        check(binary.setExecutable(true))
+    }
+
+    private fun ext4Image(): File =
+        File(tmp.root, "system.img").apply {
+            writeBytes(ByteArray(0x43a).also {
+                it[0x438] = 0x53
+                it[0x439] = 0xef.toByte()
+            })
+        }
+
+    @Test
+    fun extractFilesystem_debugfsPartialExtractionIsFailureEvenWithZeroExit() = runBlocking {
+        fakeDebugfs("echo 'rdump: Permission denied while creating symlink /vendor' >&2")
+        val service = newService()
+
+        val result = service.extractFilesystem(ext4Image())
+
+        assertFalse(result.ok)
+        assertTrue(result.message.contains("tidak lengkap"))
+        assertTrue(result.message.contains("Permission denied"))
+        assertTrue(service.progressMessage.value.contains("gagal"))
+    }
+
+    @Test
+    fun extractFilesystem_debugfsBannerAloneDoesNotPreventSuccess() = runBlocking {
+        fakeDebugfs("")
+
+        val result = newService().extractFilesystem(ext4Image())
+
+        assertTrue(result.ok)
+    }
+
     @Test
     fun repackFilesystem_compressionFailureFallsBackWithoutCompressionFlag() = runBlocking {
         val binary = File(tmp.root, "libs/libmkfs.erofs.so")

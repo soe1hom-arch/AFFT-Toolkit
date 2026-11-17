@@ -1191,8 +1191,22 @@ class AFFTService(
                     onProgress = { addLog(it) },
                 )
 
+            val debugfsErrors = debugfsDiagnostics(debugfsResult.errorOutput)
+            val badMagicError =
+                debugfsErrors.any {
+                    it.contains("Bad magic number") || it.contains("Filesystem not open")
+                }
+            val extractionError =
+                debugfsErrors.firstOrNull {
+                    !it.contains("Bad magic number") && !it.contains("Filesystem not open")
+                }
+            if (extractionError != null) {
+                val message = "Ekstraksi tidak lengkap; jangan gunakan hasilnya untuk repack atau flash: $extractionError"
+                addLog("[FAIL] $message")
+                return failResult("Extract Filesystem", message)
+            }
             val debugfsFileCount = if (outDir.exists()) outDir.walkTopDown().count() - 1 else 0
-            if (debugfsResult.exitCode == 0 && debugfsFileCount > 0) {
+            if (debugfsResult.exitCode == 0 && debugfsErrors.isEmpty() && debugfsFileCount > 0) {
                 addLog("[OK] Filesystem terekstrak ke $name/ ($debugfsFileCount item)")
                 updateProgress("Ekstrak selesai! $debugfsFileCount item")
                 OperationResult(
@@ -1206,10 +1220,6 @@ class AFFTService(
                 debugfsResult.errorOutput.forEach { addLog("[ERROR] $it") }
 
                 // Check if error is "Bad magic" - try EROFS as fallback
-                val badMagicError =
-                    debugfsResult.errorOutput.any {
-                        it.contains("Bad magic number") || it.contains("Filesystem not open")
-                    }
                 if (badMagicError) {
                     addLog("[INFO] Bad magic number! File mungkin EROFS, coba extract.erofs...")
                     val erofsTool = BinaryManager.getBinaryPath(context, "extract.erofs")
@@ -1258,7 +1268,7 @@ class AFFTService(
                             workingDir = getTempDir(),
                             onProgress = { addLog(it) },
                         )
-                    if (rawResult.exitCode == 0) {
+                    if (rawResult.exitCode == 0 && debugfsDiagnostics(rawResult.errorOutput).isEmpty()) {
                         val fileCount = if (outDir.exists()) outDir.walkTopDown().count() - 1 else 0
                         addLog("[OK] Filesystem terekstrak dari file raw! ($fileCount item)")
                         updateProgress("Ekstrak selesai! $fileCount item")
@@ -1299,7 +1309,7 @@ class AFFTService(
                                 workingDir = getTempDir(),
                                 onProgress = { addLog(it) },
                             )
-                        if (rdumpResult.exitCode == 0) {
+                        if (rdumpResult.exitCode == 0 && debugfsDiagnostics(rdumpResult.errorOutput).isEmpty()) {
                             addLog("[OK] Ekstrak berhasil dengan rdump!")
                             OperationResult(
                                 true,
@@ -1336,6 +1346,10 @@ class AFFTService(
             ensureForegroundStopped()
         }
     }
+
+    private fun debugfsDiagnostics(lines: List<String>): List<String> =
+        lines.map { it.trim() }
+            .filter { it.isNotEmpty() && !it.matches(Regex("""debugfs \d+(?:\.\d+)+(?:[-\w.]*) \([^)]*\)""")) }
 
     /**
      * Read saved super device-size from unpack phase.
