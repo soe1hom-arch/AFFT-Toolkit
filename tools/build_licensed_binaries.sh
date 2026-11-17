@@ -51,7 +51,8 @@ fi
         --disable-tls --disable-uuidd --disable-e2initrd-helper \
         CC="$CC" AR="$AR" RANLIB="$RANLIB" \
         CFLAGS="-O2 -fPIC"
-    make -j"$(nproc)"
+    make -j"$(nproc)" libs
+    make -C debugfs -j"$(nproc)" debugfs
 )
 install -m 755 "$E2FS_DIR/debugfs/debugfs" "$JNILIBS_DIR/libdebugfs.so"
 readelf -h "$JNILIBS_DIR/libdebugfs.so" | grep -q 'AArch64'
