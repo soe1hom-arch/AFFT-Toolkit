@@ -1837,8 +1837,7 @@ class AFFTService(
                     File(getTempDir(), "boot_out/${bootType}_out")
                 }
             if (!outDir.exists()) {
-                return OperationResult(
-                    false,
+                return failResult(
                     "Repack $bootType",
                     "No unpacked boot found at ${outDir.path}/",
                 )
@@ -1851,80 +1850,74 @@ class AFFTService(
             // Copy the original boot image back if it exists
             val bootCopy = File(outDir, bootType)
             if (!bootCopy.exists()) {
-                addLog("[FAIL] Original boot image not found in $outDir")
-                return OperationResult(
-                    false,
+                return failResult(
                     "Repack $bootType",
                     "Original boot image not found, re-extract first",
                 )
             }
+            if (bootCopy.canonicalFile == outputFile.canonicalFile) {
+                return failResult("Repack $bootType", "Folder sumber tidak boleh sama dengan folder hasil repack")
+            }
 
+            val newBoot = File(outDir, "new-boot.img")
+            if (newBoot.exists()) {
+                return failResult(
+                    "Repack $bootType",
+                    "new-boot.img sudah ada di folder sumber; pindahkan atau ganti namanya sebelum repack",
+                )
+            }
             updateProgress("Repacking $bootType...")
             addLog("Running: magiskboot repack $bootType")
 
             // magiskboot repack creates new-boot.img in the working directory
-            val result =
-                ShellExecutor.executeBinary(
-                    binaryPath = magisk,
-                    args = listOf("repack", bootCopy.absolutePath),
-                    workingDir = outDir,
-                    onOutput = { line -> addLog(line) },
-                )
+            try {
+                val result =
+                    ShellExecutor.executeBinary(
+                        binaryPath = magisk,
+                        args = listOf("repack", bootCopy.absolutePath),
+                        workingDir = outDir,
+                        onOutput = { line -> addLog(line) },
+                    )
 
-            // Check for new-boot.img in outDir
-            val newBoot = File(outDir, "new-boot.img")
-            if (result.exitCode == 0 && newBoot.exists()) {
+                if (result.exitCode != 0) {
+                    addLog("[FAIL] magiskboot repack failed (exit ${result.exitCode})")
+                    result.errorOutput.forEach { addLog("[ERROR] $it") }
+                    return failResult("Repack $bootType", "magiskboot gagal (exit ${result.exitCode})")
+                }
+                if (!newBoot.isFile || newBoot.length() == 0L) {
+                    return failResult("Repack $bootType", "magiskboot tidak menghasilkan image atau hasilnya kosong")
+                }
                 newBoot.copyTo(outputFile, overwrite = true)
                 addLog("[OK] $bootType repacked: ${outputFile.absolutePath}")
-                updateProgress("Repack $bootType selesai!")
 
-                // Khusus vbmeta.img: sign AVB setelah repack
                 if (bootType == "vbmeta.img") {
-                    addLog("[INFO] vbmeta detected, signing with AVB 1.0...")
-                    val signResult =
-                        ShellExecutor.executeBinary(
-                            binaryPath = magisk,
-                            args = listOf("sign", outputFile.absolutePath),
-                            workingDir = outDir,
-                            onOutput = { line -> addLog(line) },
-                        )
-                    if (signResult.exitCode == 0) {
-                        addLog("[OK] vbmeta signed successfully")
-                    } else {
-                        addLog("[WARN] vbmeta signing failed (exit ${signResult.exitCode})")
-                        addLog("[WARN] Image tetap tersimpan tapi tanpa AVB signature")
-                    }
+                    val message = "Hasil vbmeta belum ditandatangani atau diverifikasi untuk AVB 2.0. Jangan flash."
+                    addLog("[WARN] $message")
+                    return failResult("Repack $bootType", message, outputFile.absolutePath)
                 }
 
-                copyResultToDownload(outputFile.absolutePath, bootType)
-                OperationResult(
-                    true,
-                    "Repack $bootType",
-                    "Repack selesai: $bootType",
-                    outputFile.absolutePath,
-                )
-            } else {
-                addLog("[FAIL] magiskboot repack failed (exit ${result.exitCode})")
-                result.errorOutput.forEach { addLog("[ERROR] $it") }
-                if (newBoot.exists()) {
-                    // new-boot.img exists but exit code != 0 — coba paksa pakai itu
-                    newBoot.copyTo(outputFile, overwrite = true)
-                    addLog("[WARN] new-boot.img ditemukan meski exit code ${result.exitCode}, mencoba menyimpan...")
-                    copyResultToDownload(outputFile.absolutePath, "${bootType}_forced")
-                    OperationResult(
-                        true,
+                if (!copyResultToDownload(outputFile.absolutePath, bootType)) {
+                    return failResult(
                         "Repack $bootType",
-                        "Repack selesai (forced): $bootType",
+                        "Image dibuat, tetapi gagal disalin ke Download/AFFT",
                         outputFile.absolutePath,
                     )
-                } else {
-                    OperationResult(
-                        false,
-                        "Repack $bootType",
-                        "magiskboot repack failed (exit ${result.exitCode})",
-                    )
+                }
+                val message = "Repack selesai: $bootType. Kompatibilitas dan tanda tangan belum diverifikasi."
+                updateProgress(message)
+                return OperationResult(
+                    true,
+                    "Repack $bootType",
+                    message,
+                    outputFile.absolutePath,
+                )
+            } finally {
+                if (newBoot.exists() && !newBoot.delete()) {
+                    addLog("[WARN] Tidak dapat menghapus file sementara ${newBoot.absolutePath}")
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             addLog("[ERROR] ${e.message}")
             failResult("Repack $bootType", e.message ?: "Unknown error")

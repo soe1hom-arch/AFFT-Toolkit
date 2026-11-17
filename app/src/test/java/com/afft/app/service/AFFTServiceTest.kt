@@ -90,6 +90,88 @@ class AFFTServiceTest {
         assertFalse(result.ok)
     }
 
+    private fun fakeMagiskBoot(script: String) {
+        val binary = File(tmp.root, "libs/libmagiskboot.so")
+        binary.parentFile!!.mkdirs()
+        binary.writeText("#!/bin/sh\n$script\n")
+        check(binary.setExecutable(true))
+    }
+
+    private fun bootSource(name: String): File {
+        val dir = File(tmp.root, "boot-source").apply { mkdirs() }
+        File(dir, name).writeText("original")
+        return dir
+    }
+
+    @Test
+    fun repackBoot_failedProcessWithOutputIsNotReportedAsSuccess() = runBlocking {
+        fakeMagiskBoot("printf partial > new-boot.img\nexit 1")
+        val source = bootSource("boot.img")
+        val service = newService()
+
+        val result = service.repackBoot("boot.img", source.absolutePath)
+
+        assertFalse(result.ok)
+        assertTrue(result.message.contains("exit 1"))
+        assertTrue(service.progressMessage.value.contains("gagal"))
+        assertFalse(File(service.getTempDir(), "repacked/boot.img").exists())
+        assertFalse(File(source, "new-boot.img").exists())
+    }
+
+    @Test
+    fun repackBoot_existingOutputIsPreservedAndRejected() = runBlocking {
+        fakeMagiskBoot("printf new > new-boot.img\nexit 0")
+        val source = bootSource("boot.img")
+        val existing = File(source, "new-boot.img").apply { writeText("existing") }
+        val service = newService()
+
+        val result = service.repackBoot("boot.img", source.absolutePath)
+
+        assertFalse(result.ok)
+        assertTrue(result.message.contains("sudah ada"))
+        assertEquals("existing", existing.readText())
+    }
+
+    @Test
+    fun repackBoot_missingOutputIsFailure() = runBlocking {
+        fakeMagiskBoot("exit 0")
+        val source = bootSource("boot.img")
+        val service = newService()
+
+        val result = service.repackBoot("boot.img", source.absolutePath)
+
+        assertFalse(result.ok)
+        assertTrue(result.message.contains("tidak menghasilkan"))
+    }
+
+    @Test
+    fun repackBoot_emptyOutputIsFailure() = runBlocking {
+        fakeMagiskBoot(": > new-boot.img\nexit 0")
+        val source = bootSource("boot.img")
+        val service = newService()
+
+        val result = service.repackBoot("boot.img", source.absolutePath)
+
+        assertFalse(result.ok)
+        assertTrue(result.message.contains("kosong"))
+        assertFalse(File(source, "new-boot.img").exists())
+    }
+
+    @Test
+    fun repackVbmetaDoesNotClaimAvb2Signing() = runBlocking {
+        fakeMagiskBoot("printf image > new-boot.img\nexit 0")
+        val source = bootSource("vbmeta.img")
+        val service = newService()
+
+        val result = service.repackBoot("vbmeta.img", source.absolutePath)
+
+        assertFalse(result.ok)
+        assertTrue(result.message.contains("AVB 2.0"))
+        assertTrue(result.message.contains("Jangan flash"))
+        assertTrue(File(result.outputPath).isFile)
+        assertFalse(File(source, "new-boot.img").exists())
+    }
+
     // ---------------- invalid input ----------------
 
     @Test

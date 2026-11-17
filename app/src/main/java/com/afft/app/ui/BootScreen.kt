@@ -74,6 +74,8 @@ fun BootScreen(
     var selectedFileName by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedBootType by rememberSaveable { mutableStateOf<BootImageType?>(null) }
     var selectedInputFilePath by rememberSaveable { mutableStateOf<String?>(null) }
+    var repackStatus by rememberSaveable { mutableStateOf<String?>(null) }
+    var repackSucceeded by rememberSaveable { mutableStateOf(false) }
     val selectedInputFile: File? = selectedInputFilePath?.let { path -> File(path) }
     val workspaceState by workspace.state.collectAsState()
     val progressMessage by afftService.progressMessage.collectAsState()
@@ -259,6 +261,7 @@ fun BootScreen(
             status =
                 when {
                     isRunning -> StatusType.RUNNING to "PROCESSING"
+                    progressMessage.startsWith("❌") -> StatusType.ERROR to "FAILED"
                     doneMessage != null -> StatusType.READY to "DONE"
                     else -> null
                 },
@@ -302,7 +305,7 @@ fun BootScreen(
         LiveStatusCard(
             activity = liveActivity,
             idleText = "Idle — pilih boot image untuk memulai",
-            busy = isRunning || isBootLoading || progressMessage.isNotBlank(),
+            busy = isRunning || isBootLoading,
             modifier = Modifier.fillMaxWidth(),
         )
 
@@ -334,6 +337,7 @@ fun BootScreen(
 
         Button(
             onClick = {
+                repackStatus = null
                 selectedInputFile?.let { file ->
                     selectedBootType?.let { type ->
                         scope.launch {
@@ -401,11 +405,19 @@ fun BootScreen(
 
         Button(
             onClick = {
+                repackStatus = null
                 selectedBootType?.let { type ->
                     scope.launch {
                         val t0 = System.currentTimeMillis()
                         val result =
                             afftService.repackBoot(type.fileName, customSourceDir = repackSourcePath)
+                        repackSucceeded = result.ok
+                        repackStatus =
+                            if (result.outputPath.isNotEmpty()) {
+                                "${result.message}\nFile workspace: ${result.outputPath}"
+                            } else {
+                                result.message
+                            }
                         workspace.recordOperation(
                             title = "Repack Boot",
                             ok = result.ok,
@@ -424,6 +436,17 @@ fun BootScreen(
             Icon(painterResource(R.drawable.ic_arrow_forward), null, tint = LocalIconTint.current)
             Spacer(modifier = Modifier.width(8.dp))
             Text("Repack ${selectedBootType?.displayName ?: "Boot"}")
+        }
+
+        repackStatus?.let { message ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color =
+                    if (repackSucceeded) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.error,
+            )
         }
 
         // Preview extracted files if available

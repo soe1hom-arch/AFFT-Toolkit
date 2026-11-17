@@ -285,6 +285,8 @@ Directory names and available resources may vary by version and workflow. Repack
 > - Keep a recoverable copy of the original image.
 > - Understand the operation before modifying or flashing any image.
 > - Do not assume that a successful repack guarantees a bootable image.
+> - Boot repack does not verify image compatibility or signatures. `vbmeta.img`
+>   output is not signed or verified for AVB 2.0; do not flash it as-is.
 >
 > AFFT Toolkit does not guarantee compatibility with every device, image format, firmware package, or Android version.
 
