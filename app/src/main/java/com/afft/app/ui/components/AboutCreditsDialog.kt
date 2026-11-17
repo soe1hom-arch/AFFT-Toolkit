@@ -79,7 +79,7 @@ fun AboutCreditsContent(
             CreditRow("lpunpack", "AOSP", "https://android.googlesource.com/platform/system/core/")
             CreditRow("mkfs.erofs / extract.erofs", "sekaiacg/erofs-tools (GPL-2.0-or-later)", "https://github.com/sekaiacg/erofs-tools/releases/tag/v1.8.10-251217")
             CreditRow("debugfs", "e2fsprogs 1.47.0 (GPL-2.0; pinned source build)", "https://github.com/tytso/e2fsprogs/tree/25ad8a431331b4d1d444a70b6079456cc612ac40")
-            CreditRow("make_ext4fs", "Source not verified", "https://android.googlesource.com/platform/system/extras/")
+            CreditRow("make_ext4fs", "rendiix/make_ext4fs", "https://github.com/rendiix/make_ext4fs/tree/4b805b4ff0129fb8df553247c1edce2fecfada6e")
             CreditRow("simg2img", "AOSP", "https://android.googlesource.com/platform/system/core/")
             CreditRow("liblzma", "tukaani-project/xz", "https://github.com/tukaani-project/xz")
             CreditRow("libzstd", "facebook/zstd", "https://github.com/facebook/zstd")

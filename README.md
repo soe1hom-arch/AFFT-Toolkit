@@ -315,7 +315,7 @@ AFFT Toolkit uses or incorporates third-party tools and libraries for firmware p
 | **simg2img** | [AOSP](https://android.googlesource.com/platform/system/core/) |
 | **mkfs.erofs / extract.erofs** | [EROFS Tools release](https://github.com/sekaiacg/erofs-tools/releases/tag/v1.8.10-251217) |
 | **debugfs** | [e2fsprogs v1.47.0](https://github.com/tytso/e2fsprogs/tree/25ad8a431331b4d1d444a70b6079456cc612ac40), built from pinned source in CI |
-| **make_ext4fs** | Binary provenance not verified; see third-party notices |
+| **make_ext4fs** | Identical to [rendiix/make_ext4fs](https://github.com/rendiix/make_ext4fs/tree/4b805b4ff0129fb8df553247c1edce2fecfada6e); exact build source unverified |
 | **liblzma / libzstd** | [XZ 5.4.6](https://github.com/tukaani-project/xz/tree/v5.4.6) / [Zstandard 1.5.5](https://github.com/facebook/zstd/tree/v1.5.5) |
 | **Inter** | [rsms/inter](https://github.com/rsms/inter) — OFL-1.1 |
 | **JetBrains Mono** | [JetBrainsMono](https://github.com/JetBrains/JetBrainsMono) — OFL-1.1 |

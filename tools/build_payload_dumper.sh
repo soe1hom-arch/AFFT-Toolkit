@@ -84,8 +84,18 @@ mkdir -p "$(dirname "$GOZSTD_DIR")"
 if [ ! -d "$GOZSTD_DIR" ]; then
     (cd "$PAYLOAD_DIR" && GOMODCACHE="$GOMODCACHE" go mod download "github.com/valyala/gozstd@$GOZSTD_VER")
 fi
-GOZSTD_DIR="$GOMODCACHE/github.com/valyala/gozstd@$GOZSTD_VER"
-cp "$WORK_DIR/zstd-install/lib/libzstd.a" "$GOZSTD_DIR/libzstd_linux_arm64.a"
+GOZSTD_BUILD_DIR="$WORK_DIR/gozstd-$GOZSTD_VER"
+mkdir -p "$GOZSTD_BUILD_DIR"
+chmod -R u+w "$GOZSTD_BUILD_DIR"
+cp -R "$GOZSTD_DIR/." "$GOZSTD_BUILD_DIR/"
+chmod -R u+w "$GOZSTD_BUILD_DIR"
+cp "$WORK_DIR/zstd-install/lib/libzstd.a" "$GOZSTD_BUILD_DIR/libzstd_linux_arm64.a"
+
+MODFILE="$WORK_DIR/payload-build.mod"
+cp "$PAYLOAD_DIR/go.mod" "$MODFILE"
+cp "$PAYLOAD_DIR/go.sum" "$WORK_DIR/payload-build.sum"
+(cd "$PAYLOAD_DIR" && go mod edit -modfile "$MODFILE" \
+    -replace "github.com/valyala/gozstd=$GOZSTD_BUILD_DIR")
 
 echo "=== Compile for Android ARM64 ==="
 cd "$PAYLOAD_DIR"
@@ -95,9 +105,10 @@ export GOARCH=arm64
 export CC
 export CGO_CFLAGS="-I$WORK_DIR/xz-install/include -O2"
 export CGO_LDFLAGS="-L$WORK_DIR/xz-install/lib -l:liblzma.a"
-go build -mod=readonly -ldflags='-s -w' -o payload-dumper-go .
+OUTPUT_BINARY="$WORK_DIR/payload-dumper-go"
+go build -mod=readonly -modfile "$MODFILE" -ldflags='-s -w' -o "$OUTPUT_BINARY" .
 
-file payload-dumper-go
-install -m 755 payload-dumper-go "$JNILIBS_DIR/libpayload-dumper-go.so"
-install -m 755 payload-dumper-go "$ASSETS_DIR/payload-dumper-go"
+file "$OUTPUT_BINARY"
+install -m 755 "$OUTPUT_BINARY" "$JNILIBS_DIR/libpayload-dumper-go.so"
+install -m 755 "$OUTPUT_BINARY" "$ASSETS_DIR/payload-dumper-go"
 echo "=== payload-dumper-go DONE ==="
