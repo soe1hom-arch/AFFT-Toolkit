@@ -33,8 +33,8 @@ if [ ! -L "$OUTPUT_DIR/link" ] || [ "$(readlink "$OUTPUT_DIR/link")" != "file" ]
     echo "extracted symlink is missing or incorrect" >&2
     exit 1
 fi
-grep -Fx "/ $(stat -c %u "$SOURCE_DIR") $(stat -c %g "$SOURCE_DIR") 0755" "$FS_CONFIG" ||
-    { echo "fs_config is missing the root entry" >&2; exit 1; }
+grep -Fx "/ 0 0 0755" "$FS_CONFIG" ||
+    { cat "$FS_CONFIG" >&2; echo "fs_config is missing the ext4 root entry" >&2; exit 1; }
 grep -Fx "file $(stat -c %u "$SOURCE_DIR/file") $(stat -c %g "$SOURCE_DIR/file") 0640" "$FS_CONFIG" ||
     { echo "fs_config did not preserve file UID/GID/mode" >&2; exit 1; }
 grep -Fx "sub $(stat -c %u "$SOURCE_DIR/sub") $(stat -c %g "$SOURCE_DIR/sub") 0755" "$FS_CONFIG" ||
