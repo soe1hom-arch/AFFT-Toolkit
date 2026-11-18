@@ -527,7 +527,7 @@ fun FilesystemScreen(
 
         if (isRunning) {
             Spacer(modifier = Modifier.height(16.dp))
-            ProcessingOverlay(isRunning = true)
+            ProcessingOverlay(isRunning = true, message = progressMessage.ifBlank { "Memproses filesystem..." })
         }
 
         // Bottom spacing agar tombol/isi terakhir tidak menempel bottom nav

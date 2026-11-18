@@ -102,9 +102,15 @@ class AFFTService(
         // Start foreground service saat operasi dimulai agar proses tidak dibunuh
         // saat aplikasi di-background. Service di-stop setelah operasi selesai.
         try {
+            AFFTExtractService.onFailure = { message ->
+                addLog("[ERROR] $message")
+                updateProgress(message)
+            }
             AFFTExtractService.start(context)
         } catch (e: Exception) {
             android.util.Log.w("AFFTService", "Gagal start foreground service: ${e.message}")
+            addLog("[ERROR] Foreground service tidak dapat dimulai: ${e.message}")
+            updateProgress("Foreground service tidak dapat dimulai; proses dapat terhenti di background")
         }
     }
 
@@ -115,6 +121,8 @@ class AFFTService(
             AFFTExtractService.stop(context)
         } catch (e: Exception) {
             android.util.Log.w("AFFTService", "Gagal stop foreground service: ${e.message}")
+        } finally {
+            AFFTExtractService.onFailure = null
         }
     }
 
@@ -178,11 +186,10 @@ class AFFTService(
         opName: String,
         initialMessage: String,
     ): Boolean {
-        if (_isRunning.value) {
+        if (!_isRunning.compareAndSet(expect = false, update = true)) {
             addLog("[WARN] '$opName' dilewati: operasi lain masih berjalan")
             return false
         }
-        _isRunning.value = true
         _progressPercent.value = 0
         _currentPartition.value = ""
         updateProgress(initialMessage)
@@ -209,9 +216,11 @@ class AFFTService(
     }
 
     fun clearLogs() {
-        _progressMessage.value = ""
-        _progressPercent.value = 0
-        _currentPartition.value = ""
+        if (!_isRunning.value) {
+            _progressMessage.value = ""
+            _progressPercent.value = 0
+            _currentPartition.value = ""
+        }
         logManager.clear()
     }
 
@@ -404,11 +413,11 @@ class AFFTService(
 
     suspend fun extractPayload(inputFile: File): OperationResult {
         ensureDirs()
-        ensureForegroundRunning()
         if (!beginOperation("Extract Payload", "Extracting payload, mohon tunggu...")) {
             return failResult("Extract Payload", "Operasi lain masih berjalan, coba lagi nanti")
         }
         clearLogs()
+        ensureForegroundRunning()
         addLog("=== Extract payload.bin ===")
         addLog("[INFO] Menggunakan file: ${inputFile.absolutePath}")
 
@@ -591,8 +600,8 @@ class AFFTService(
             monitorScope?.cancel()
             // Flush remaining logs
             flushLogs()
-            _isRunning.value = false
             ensureForegroundStopped()
+            _isRunning.value = false
         }
     }
 
@@ -726,11 +735,11 @@ class AFFTService(
 
     suspend fun unpackSuper(inputFile: File): OperationResult {
         ensureDirs()
-        ensureForegroundRunning()
         if (!beginOperation("Unpack Super", "Unpacking super.img...")) {
             return failResult("Unpack Super", "Operasi lain masih berjalan, coba lagi nanti")
         }
         clearLogs()
+        ensureForegroundRunning()
         addLog("=== Unpack super.img ===")
         addLog("[INFO] Menggunakan file: ${inputFile.absolutePath}")
 
@@ -793,8 +802,8 @@ class AFFTService(
         } finally {
             // Flush remaining logs
             flushLogs()
-            _isRunning.value = false
             ensureForegroundStopped()
+            _isRunning.value = false
         }
     }
 
@@ -803,11 +812,11 @@ class AFFTService(
         customSourceDir: String? = null,
     ): OperationResult {
         ensureDirs()
-        ensureForegroundRunning()
         if (!beginOperation("Repack Super", "Repacking super.img...")) {
             return failResult("Repack Super", "Operasi lain masih berjalan, coba lagi nanti")
         }
         clearLogs()
+        ensureForegroundRunning()
         addLog("=== Repack super.img ===")
 
         return try {
@@ -1036,8 +1045,8 @@ class AFFTService(
             failResult("Repack Super", e.message ?: "Unknown error")
         } finally {
             flushLogs()
-            _isRunning.value = false
             ensureForegroundStopped()
+            _isRunning.value = false
         }
     }
 
@@ -1053,16 +1062,22 @@ class AFFTService(
         return extractFilesystem(fsFile)
     }
 
-    suspend fun extractFilesystem(inputFile: File): OperationResult {
+    suspend fun extractFilesystem(inputFile: File): OperationResult =
+        withContext(Dispatchers.IO) { extractFilesystemOnIo(inputFile) }
+
+    private suspend fun extractFilesystemOnIo(inputFile: File, nested: Boolean = false): OperationResult {
         ensureDirs()
         val name = inputFile.nameWithoutExtension
         if (name.isBlank() || name == "." || name == "..") {
             return failResult("Extract Filesystem", "Nama filesystem tidak valid")
         }
-        ensureForegroundRunning()
-        _isRunning.value = true
-        _progressMessage.value = "Extracting filesystem..."
-        clearLogs()
+        if (!nested) {
+            if (!beginOperation("Extract Filesystem", "Extracting filesystem...")) {
+                return failResult("Extract Filesystem", "Operasi lain masih berjalan, coba lagi nanti")
+            }
+            clearLogs()
+            ensureForegroundRunning()
+        }
         addLog("=== Extract Filesystem ===")
         addLog("[INFO] Menggunakan file: ${inputFile.absolutePath}")
         addLog("[INFO] File size: ${inputFile.length()} bytes")
@@ -1190,7 +1205,7 @@ class AFFTService(
                     )
                 if (gunzipRes.exitCode == 0 && decompressed.exists()) {
                     addLog("[OK] Dekompresi berhasil, mendeteksi ulang...")
-                    return extractFilesystem(decompressed)
+                    return extractFilesystemOnIo(decompressed, nested = true)
                 }
                 addLog("[FAIL] Gagal dekompresi gzip, lanjut ke debugfs...")
             }
@@ -1422,9 +1437,11 @@ class AFFTService(
             failResult("Extract Filesystem", e.message ?: "Unknown error")
         } finally {
             // Flush remaining logs
-            flushLogs()
-            _isRunning.value = false
-            ensureForegroundStopped()
+            if (!nested) {
+                flushLogs()
+                ensureForegroundStopped()
+                _isRunning.value = false
+            }
         }
     }
 
@@ -1505,11 +1522,11 @@ class AFFTService(
         customSourceDir: String? = null,
     ): OperationResult {
         ensureDirs()
-        ensureForegroundRunning()
         if (!beginOperation("Repack Filesystem", "Repacking filesystem...")) {
             return failResult("Repack Filesystem", "Operasi lain masih berjalan, coba lagi nanti")
         }
         clearLogs()
+        ensureForegroundRunning()
         addLog("=== Repack Filesystem ===")
 
         return try {
@@ -1676,8 +1693,8 @@ class AFFTService(
             failResult("Repack Filesystem", e.message ?: "Unknown error")
         } finally {
             flushLogs()
-            _isRunning.value = false
             ensureForegroundStopped()
+            _isRunning.value = false
         }
     }
 
@@ -1819,11 +1836,11 @@ class AFFTService(
         bootType: String,
     ): OperationResult {
         ensureDirs()
-        ensureForegroundRunning()
         if (!beginOperation("Unpack Boot", "Unpacking $bootType...")) {
             return failResult("Unpack Boot", "Operasi lain masih berjalan, coba lagi nanti")
         }
         clearLogs()
+        ensureForegroundRunning()
         addLog("=== Unpack $bootType ===")
         addLog("[INFO] Menggunakan file: ${inputFile.absolutePath}")
 
@@ -1930,8 +1947,8 @@ class AFFTService(
             failResult("Unpack $bootType", e.message ?: "Unknown error")
         } finally {
             flushLogs()
-            _isRunning.value = false
             ensureForegroundStopped()
+            _isRunning.value = false
         }
     }
 
@@ -1940,11 +1957,11 @@ class AFFTService(
         customSourceDir: String? = null,
     ): OperationResult {
         ensureDirs()
-        ensureForegroundRunning()
         if (!beginOperation("Repack Boot", "Repacking $bootType...")) {
             return failResult("Repack Boot", "Operasi lain masih berjalan, coba lagi nanti")
         }
         clearLogs()
+        ensureForegroundRunning()
         addLog("=== Repack $bootType ===")
 
         return try {
@@ -2047,8 +2064,8 @@ class AFFTService(
             failResult("Repack $bootType", e.message ?: "Unknown error")
         } finally {
             flushLogs()
-            _isRunning.value = false
             ensureForegroundStopped()
+            _isRunning.value = false
         }
     }
 

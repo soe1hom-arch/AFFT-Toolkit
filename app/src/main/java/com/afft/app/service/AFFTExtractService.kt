@@ -30,33 +30,27 @@ class AFFTExtractService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    override fun onCreate() {
-        // startForeground() HARUS dipanggil secepat mungkin, bahkan sebelum super.onCreate()
-        // untuk menghindari ForegroundServiceDidNotStartInTimeException pada Android 14+
-        // Notification channel sudah dibuat di Application.onCreate()
-        try {
-            startForeground(NOTIFICATION_ID, buildNotification())
-        } catch (e: Exception) {
-            android.util.Log.w("AFFTExtractService", "onCreate startForeground: ${e.message}")
-        }
-        super.onCreate()
-        acquireWakeLock() // WakeLock di-release di onDestroy()
-    }
-
     override fun onStartCommand(
         intent: Intent?,
         flags: Int,
         startId: Int,
     ): Int {
-        // Safety net: pastikan startForeground terpanggil (Android 14+ strict mode)
         try {
             startForeground(NOTIFICATION_ID, buildNotification())
         } catch (e: Exception) {
-            android.util.Log.w("AFFTExtractService", "onStartCommand startForeground: ${e.message}")
+            stopSelf()
+            reportFailure("Foreground service tidak dapat dimulai: ${e.message}")
+            return START_NOT_STICKY
         }
+        acquireWakeLock()
         // Jangan restart otomatis oleh sistem: service hanya diperlukan saat
         // operasi ekstraksi berjalan dan di-stop eksplisit setelah selesai.
         return START_NOT_STICKY
+    }
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        stopSelf()
+        reportFailure("Batas waktu foreground service tercapai; proses dapat terhenti saat aplikasi di background")
     }
 
     override fun onDestroy() {
@@ -84,6 +78,7 @@ class AFFTExtractService : Service() {
     }
 
     private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
         try {
             val powerManager = getSystemService(POWER_SERVICE) as PowerManager
             wakeLock =
@@ -114,6 +109,14 @@ class AFFTExtractService : Service() {
         const val CHANNEL_ID = "afft_extract"
         const val NOTIFICATION_ID = 1001
         private const val WAKELOCK_TIMEOUT_MS = 30 * 60 * 1000L
+
+        @Volatile
+        internal var onFailure: ((String) -> Unit)? = null
+
+        private fun reportFailure(message: String) {
+            android.util.Log.e("AFFTExtractService", message)
+            onFailure?.invoke(message)
+        }
 
         fun start(context: Context) {
             val intent = Intent(context, AFFTExtractService::class.java)

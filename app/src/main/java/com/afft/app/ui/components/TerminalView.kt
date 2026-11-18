@@ -17,6 +17,11 @@
 package com.afft.app.ui.components
 import com.afft.app.ui.theme.LocalFontFamily
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -27,6 +32,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -56,6 +62,7 @@ fun TerminalView(
     isRunning: Boolean = false,
     progressPercent: Int = 0,
     currentPartition: String = "",
+    progressMessage: String = "",
 ) {
     val scrollState = rememberScrollState()
     val horizontalScrollState = rememberScrollState()
@@ -201,8 +208,16 @@ fun TerminalView(
             }
         }
 
-        // ── Battery-style progress bar (payload extraction only) ──
+        // ── Battery-style progress bar ──
         if (isRunning) {
+            val hasProgress = currentPartition.isNotBlank() && progressPercent > 0
+            val transition = rememberInfiniteTransition(label = "console progress")
+            val indeterminate by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(tween(1500), RepeatMode.Reverse),
+                label = "console activity",
+            )
             Box(
                 modifier =
                     Modifier
@@ -218,13 +233,14 @@ fun TerminalView(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "◆ ${if (currentPartition.isNotEmpty()) currentPartition else "Initializing..."}",
+                            text = "◆ ${currentPartition.ifBlank { progressMessage.ifBlank { "Processing..." } }}",
                             fontSize = 10.sp,
                             fontFamily = LocalFontFamily.current,
                             color = GreenAccent,
+                            modifier = Modifier.weight(1f),
                         )
                         Text(
-                            text = "$progressPercent%",
+                            text = if (hasProgress) "$progressPercent%" else "",
                             fontSize = 10.sp,
                             fontFamily = LocalFontFamily.current,
                             color = CyanAccent,
@@ -253,7 +269,11 @@ fun TerminalView(
                         ) {
                             // Fill
                             Canvas(modifier = Modifier.fillMaxSize()) {
-                                val barWidth = size.width * (progressPercent / 100f)
+                                val barWidth = size.width * if (hasProgress) {
+                                    progressPercent.coerceIn(0, 100) / 100f
+                                } else {
+                                    0.15f + indeterminate * 0.7f
+                                }
                                 if (barWidth > 0) {
                                     // Gradient green → cyan
                                     drawRoundRect(
@@ -274,7 +294,7 @@ fun TerminalView(
                             }
                             // Percentage in center
                             Text(
-                                text = "$progressPercent%",
+                                text = if (hasProgress) "$progressPercent%" else "Processing...",
                                 fontSize = 10.sp,
                                 fontFamily = LocalFontFamily.current,
                                 fontWeight = FontWeight.Bold,
@@ -292,7 +312,7 @@ fun TerminalView(
                                     .align(Alignment.CenterEnd)
                                     .offset(x = 4.dp)
                                     .background(
-                                        if (progressPercent > 0) CyanAccent else Color(0xFF333333),
+                                        CyanAccent,
                                         RoundedCornerShape(topEnd = 2.dp, bottomEnd = 2.dp),
                                     ),
                         )

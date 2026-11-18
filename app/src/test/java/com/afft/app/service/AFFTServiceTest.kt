@@ -136,6 +136,31 @@ class AFFTServiceTest {
     }
 
     @Test
+    fun extractFilesystem_preservesLiveStatusWhenConsoleIsCleared() = runBlocking {
+        fakeDebugfs("sleep 1")
+        val service = newService()
+        val operation = launch { service.extractFilesystem(ext4Image()) }
+        while (!service.isRunning.value) delay(10)
+
+        service.clearLogs()
+
+        assertTrue(service.progressMessage.value.isNotBlank())
+        operation.join()
+    }
+
+    @Test
+    fun foregroundTimeout_reportsFailure() {
+        var failure: String? = null
+        AFFTExtractService.onFailure = { failure = it }
+        try {
+            AFFTExtractService().onTimeout(1, 0)
+            assertTrue(failure?.contains("Batas waktu") == true)
+        } finally {
+            AFFTExtractService.onFailure = null
+        }
+    }
+
+    @Test
     fun extractPayload_zeroExitWithoutImagesIsFailure() = runBlocking {
         fakePayloadDumper(writeImage = false)
         val input = File(tmp.root, "payload.bin").apply { writeText("payload") }

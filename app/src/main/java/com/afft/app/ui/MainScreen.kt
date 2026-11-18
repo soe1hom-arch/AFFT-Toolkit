@@ -317,6 +317,7 @@ fun MainScreen(
                     isRunning = isRunning,
                     progressPercent = progressPercent,
                     currentPartition = currentPartition,
+                    progressMessage = progressMessage,
                 )
 
                 Row(

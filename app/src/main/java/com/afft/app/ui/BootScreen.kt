@@ -504,7 +504,7 @@ fun BootScreen(
 
         if (isRunning) {
             Spacer(modifier = Modifier.height(16.dp))
-            ProcessingOverlay(isRunning = true, message = "Processing boot image...")
+            ProcessingOverlay(isRunning = true, message = progressMessage.ifBlank { "Processing boot image..." })
         }
 
         // Bottom spacing agar tombol/isi terakhir tidak menempel bottom nav
