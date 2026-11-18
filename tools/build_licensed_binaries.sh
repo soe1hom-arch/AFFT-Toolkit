@@ -64,7 +64,7 @@ git -C "$E2FS_DIR" archive "$E2FSPROGS_COMMIT" | tar -x -C "$E2FS_HOST_DIR"
 git -C "$E2FS_HOST_DIR" apply "$E2FS_PATCH"
 (
     cd "$E2FS_HOST_DIR"
-    ./configure --disable-tls --disable-uuidd --disable-e2initrd-helper
+    ./configure --disable-tls --disable-uuidd --disable-e2initrd-helper CFLAGS="-std=gnu17"
     make -j"$(nproc)" libs
     make -C debugfs -j"$(nproc)" debugfs
 )
