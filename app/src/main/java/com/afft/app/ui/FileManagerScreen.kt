@@ -24,9 +24,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -67,7 +69,7 @@ fun FileManagerScreen(
     var currentDir by remember { mutableStateOf<File?>(null) }
     var files by remember { mutableStateOf<List<File>>(emptyList()) }
     var pathHistory by remember { mutableStateOf<List<File>>(emptyList()) }
-    var showSize by rememberSaveable { mutableStateOf(false) }
+    var showSize by rememberSaveable { mutableStateOf(true) }
     var selectedFiles by remember { mutableStateOf<Set<File>>(emptySet()) }
     var selectMode by remember { mutableStateOf(false) }
     var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
@@ -86,14 +88,11 @@ fun FileManagerScreen(
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var showPropertiesFor by remember { mutableStateOf<File?>(null) }
     var showPropertiesDialog by rememberSaveable { mutableStateOf(false) }
-    var showLocations by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
     var listError by remember { mutableStateOf<String?>(null) }
     var listLoading by remember { mutableStateOf(false) }
     var refreshVersion by remember { mutableIntStateOf(0) }
 
-    val workDir = afftService.getWorkDir()
-    val tempDir = afftService.getTempDir()
     val inputDir = afftService.getInputDir()
     val downloadDir = afftService.getExportDir()
     // Show toast
@@ -174,9 +173,9 @@ fun FileManagerScreen(
         selectMode = selectedFiles.isNotEmpty()
     }
 
-    fun navigateTo(dir: File) {
+    fun navigateTo(dir: File, keepCurrentInHistory: Boolean = true) {
         currentDir?.let { current ->
-            if (current != dir) pathHistory = pathHistory + current
+            if (keepCurrentInHistory && current != dir) pathHistory = pathHistory + current
         }
         searchQuery = ""
         showSearch = false
@@ -222,18 +221,38 @@ fun FileManagerScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    if (selectMode) "${selectedFiles.size} dipilih" else "AFFT Manager",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontFamily = LocalFontFamily.current,
-                )
-                if (!selectMode) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(42.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painterResource(R.drawable.ic_folder_open),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
                     Text(
-                        "Kelola file dan hasil ekstraksi",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        if (selectMode) "${selectedFiles.size} dipilih" else "AFFT Manager",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontFamily = LocalFontFamily.current,
                     )
+                    if (!selectMode) {
+                        Text(
+                            "File dan hasil firmware",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
             if (selectMode) {
@@ -264,98 +283,92 @@ fun FileManagerScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Path bar
+        // Quick access locations
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (pathHistory.isNotEmpty()) {
-                IconButton(onClick = { navigateBack() }) {
-                    Icon(painterResource(R.drawable.ic_arrow_back), "Back", tint = LocalIconTint.current)
-                }
-            }
-            // Parent directory button
-            IconButton(
-                onClick = {
-                    currentDir?.parentFile?.let { parent -> navigateTo(parent) }
-                },
-                enabled = currentDir != null && currentDir?.parentFile != null,
-                modifier = Modifier.size(36.dp),
-            ) {
-                Icon(painterResource(R.drawable.ic_subdirectory_arrow_left), "↑", tint = LocalIconTint.current)
-            }
-            Text(
-                text = currentDir?.absolutePath ?: "",
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = LocalFontFamily.current,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
+            val locations = listOf(
+                Triple("Penyimpanan", R.drawable.ic_phone_android, File("/storage/emulated/0")),
+                Triple("Filesystem", R.drawable.ic_folder, afftService.getFilesystemContentsDir()),
+                Triple("Input", R.drawable.ic_drive_file_move, inputDir),
+                Triple("Downloads", R.drawable.ic_download, downloadDir),
             )
-            // Refresh button
-            IconButton(
-                onClick = {
-                    scope.launch {
-                        currentDir?.let { refreshFiles(it) }
-                    }
-                },
-                modifier = Modifier.size(36.dp),
-            ) {
-                Icon(painterResource(R.drawable.ic_refresh), "Refresh", tint = LocalIconTint.current)
+            locations.forEach { (label, icon, dir) ->
+                val currentPath = currentDir?.absoluteFile?.normalize()?.path
+                val locationPath = dir.absoluteFile.normalize().path
+                val active = currentPath == locationPath ||
+                    currentPath?.startsWith(locationPath.trimEnd(File.separatorChar) + File.separator) == true
+                FilterChip(
+                    selected = active,
+                    onClick = {
+                        pathHistory = emptyList()
+                        navigateTo(dir, keepCurrentInHistory = false)
+                    },
+                    label = { Text(label) },
+                    leadingIcon = {
+                        Icon(painterResource(icon), null, modifier = Modifier.size(18.dp))
+                    },
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Quick locations
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+        // Current folder card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            shape = MaterialTheme.shapes.large,
         ) {
-            Box(modifier = Modifier.weight(1f)) {
-                OutlinedButton(onClick = { showLocations = true }) {
-                    Icon(painterResource(R.drawable.ic_folder_open), null, tint = LocalIconTint.current)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Lokasi")
-                }
-                DropdownMenu(expanded = showLocations, onDismissRequest = { showLocations = false }) {
-                    val locations = listOf(
-                        "Input" to inputDir,
-                        "Hasil filesystem (privat)" to afftService.getFilesystemContentsDir(),
-                        "Folder kerja" to workDir,
-                        "Temp" to tempDir,
-                        "Downloads/AFFT" to downloadDir,
-                        "Penyimpanan perangkat" to File("/storage/emulated/0"),
-                    )
-                    locations.forEach { (label, dir) ->
-                        DropdownMenuItem(
-                            text = { Text(label) },
-                            onClick = {
-                                showLocations = false
-                                navigateTo(dir)
-                            },
-                        )
-                    }
-                }
-            }
-            IconButton(
-                onClick = {
-                    newFolderName = ""
-                    showCreateFolderDialog = true
-                },
-                enabled = !operationInProgress,
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(painterResource(R.drawable.ic_create_new_folder), "Folder baru", tint = LocalIconTint.current)
+                IconButton(
+                    onClick = {
+                        currentDir?.parentFile?.let { navigateTo(it) }
+                    },
+                    enabled = currentDir?.parentFile != null && !operationInProgress,
+                ) {
+                    Icon(painterResource(R.drawable.ic_arrow_back), "Folder sebelumnya", tint = LocalIconTint.current)
+                }
+                Icon(
+                    painterResource(R.drawable.ic_folder),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        currentDir?.name?.ifBlank { "Penyimpanan" } ?: "Memuat folder...",
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        currentDir?.absolutePath.orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                IconButton(
+                    onClick = { scope.launch { currentDir?.let { refreshFiles(it) } } },
+                    enabled = !operationInProgress,
+                ) {
+                    Icon(painterResource(R.drawable.ic_refresh), "Muat ulang", tint = LocalIconTint.current)
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Sort + Search row
+        // List controls
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -363,7 +376,6 @@ fun FileManagerScreen(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(modifier = Modifier.weight(1f))
             Box {
                 TextButton(onClick = { showSortMenu = true }) {
                     val label = when (sortMode) {
@@ -389,11 +401,20 @@ fun FileManagerScreen(
                         }
                 }
             }
+            IconButton(
+                onClick = {
+                    newFolderName = ""
+                    showCreateFolderDialog = true
+                },
+                enabled = !operationInProgress,
+            ) {
+                Icon(painterResource(R.drawable.ic_create_new_folder), "Folder baru", tint = LocalIconTint.current)
+            }
         }
 
         // Search bar
         if (showSearch) {
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { q ->
@@ -422,12 +443,11 @@ fun FileManagerScreen(
 
         // File list
         Card(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         ) {
-            LazyColumn(modifier = Modifier.padding(2.dp)) {
+            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 4.dp)) {
                 if (files.isNotEmpty()) {
                     items(files, key = { it.absolutePath }) { file ->
                         FileRow(
@@ -446,6 +466,12 @@ fun FileManagerScreen(
                             },
                             showSize = showSize,
                         )
+                        if (file != files.lastOrNull()) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = if (selectMode) 52.dp else 48.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                            )
+                        }
                     }
                 }
                 if (files.isEmpty()) {
@@ -468,91 +494,98 @@ fun FileManagerScreen(
 
         Spacer(modifier = Modifier.height(2.dp))
 
-        // Action bar
+        // Contextual selection actions
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            tonalElevation = 2.dp,
-            shape = MaterialTheme.shapes.medium,
+            tonalElevation = 3.dp,
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceVariant,
         ) {
-            Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
-                // Left: info
-                Text(
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        if (selectMode) "${selectedFiles.size} dipilih" else "Tekan lama file untuk memilih",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
                     if (selectMode) {
-                        "${selectedFiles.size} dipilih"
-                    } else {
-                        "Tekan lama untuk memilih"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = LocalFontFamily.current,
-                    fontSize = 11.sp,
-                )
-
-                // Right: actions
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    if (selectMode) {
-                        // Select All
-                        IconButton(onClick = {
-                            selectedFiles = files.toSet()
-                            selectMode = true
-                        }, modifier = Modifier.size(36.dp)) {
-                            Icon(painterResource(R.drawable.ic_select_all), "Select All", tint = LocalIconTint.current)
+                        TextButton(
+                            onClick = {
+                                selectedFiles = if (selectedFiles.size == files.size) emptySet() else files.toSet()
+                                selectMode = selectedFiles.isNotEmpty()
+                            },
+                        ) {
+                            Text(if (selectedFiles.size == files.size) "Batal pilih semua" else "Pilih semua")
                         }
-                        // Rename & Properties (hanya saat 1 item dipilih)
+                    } else {
+                        TextButton(onClick = { showSize = !showSize }) {
+                            Text(if (showSize) "Sembunyikan ukuran" else "Ukuran")
+                        }
+                    }
+                }
+                if (selectMode) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         if (selectedFiles.size == 1) {
-                            IconButton(
+                            FilledTonalButton(
                                 onClick = {
                                     renameTarget = selectedFiles.first()
                                     renameText = renameTarget?.name.orEmpty()
                                     showRenameDialog = true
                                 },
-                                modifier = Modifier.size(36.dp),
+                                enabled = !operationInProgress,
                             ) {
-                                Icon(painterResource(R.drawable.ic_edit), "Rename", tint = LocalIconTint.current)
+                                Icon(painterResource(R.drawable.ic_edit), null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Ubah nama")
                             }
-                            IconButton(
+                            FilledTonalButton(
                                 onClick = {
                                     showPropertiesFor = selectedFiles.first()
                                     showPropertiesDialog = true
                                 },
-                                modifier = Modifier.size(36.dp),
                             ) {
-                                Icon(painterResource(R.drawable.ic_info), "Properties", tint = LocalIconTint.current)
+                                Icon(painterResource(R.drawable.ic_info), null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Detail")
                             }
                         }
-                        // Copy
-                        IconButton(
+                        FilledTonalButton(
                             onClick = { showCopyDestDialog = true },
-                            modifier = Modifier.size(36.dp),
                             enabled = !operationInProgress,
                         ) {
-                            Icon(painterResource(R.drawable.ic_content_copy), "Copy", tint = LocalIconTint.current)
+                            Icon(painterResource(R.drawable.ic_content_copy), null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Salin")
                         }
-                        // Move
-                        IconButton(
+                        FilledTonalButton(
                             onClick = { showMoveDestDialog = true },
-                            modifier = Modifier.size(36.dp),
                             enabled = !operationInProgress,
                         ) {
-                            Icon(painterResource(R.drawable.ic_drive_file_move), "Move", tint = LocalIconTint.current)
+                            Icon(painterResource(R.drawable.ic_drive_file_move), null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Pindah")
                         }
-                        // Delete
-                        IconButton(
+                        FilledTonalButton(
                             onClick = { showDeleteConfirm = true },
-                            modifier = Modifier.size(36.dp),
                             enabled = !operationInProgress,
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                            ),
                         ) {
-                            Icon(painterResource(R.drawable.ic_delete), "Delete", tint = LocalIconTint.current)
-                        }
-                    } else {
-                        TextButton(onClick = { showSize = !showSize }) {
-                            Text(if (showSize) "Sembunyikan ukuran" else "Tampilkan ukuran", fontSize = 11.sp)
+                            Icon(painterResource(R.drawable.ic_delete), null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Hapus")
                         }
                     }
                 }
@@ -991,76 +1024,91 @@ fun FileRow(
     onLongClick: () -> Unit,
     showSize: Boolean,
 ) {
-    Card(
+    val isDirectory = file.isDirectory
+    val isImage = file.extension.equals("img", ignoreCase = true)
+    val isArchive = file.extension.equals("bin", ignoreCase = true) ||
+        file.extension.equals("zip", ignoreCase = true)
+    val iconRes = when {
+        isDirectory -> R.drawable.ic_folder
+        isImage -> R.drawable.ic_sd_storage
+        isArchive -> R.drawable.ic_archive
+        else -> R.drawable.ic_description
+    }
+    val iconTint = when {
+        isDirectory -> MaterialTheme.colorScheme.primary
+        isImage -> MaterialTheme.colorScheme.tertiary
+        isArchive -> MaterialTheme.colorScheme.secondary
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Surface(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .height(64.dp)
-                .padding(horizontal = 4.dp, vertical = 2.dp)
+                .height(68.dp)
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
                 ),
-        colors =
-            CardDefaults.cardColors(
-                containerColor =
-                    when {
-                        isSelected -> MaterialTheme.colorScheme.primaryContainer
-                        else -> MaterialTheme.colorScheme.surface
-                    },
-            ),
+        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.medium,
     ) {
         Row(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Checkbox in select mode
             if (selectMode || isSelected) {
                 Checkbox(
                     checked = isSelected,
                     onCheckedChange = { onLongClick() },
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(40.dp),
                 )
                 Spacer(modifier = Modifier.width(4.dp))
             }
-            Icon(
-                when {
-                    file.isDirectory -> painterResource(R.drawable.ic_folder)
-                    file.name.endsWith(".img") -> painterResource(R.drawable.ic_sd_storage)
-                    file.name.endsWith(".bin") -> painterResource(R.drawable.ic_archive)
-                    else -> painterResource(R.drawable.ic_description)
-                },
-                contentDescription = null,
-                tint = LocalIconTint.current,
-            )
-            Spacer(modifier = Modifier.width(12.dp))
+            Surface(
+                shape = CircleShape,
+                color = iconTint.copy(alpha = 0.12f),
+                modifier = Modifier.size(42.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        painterResource(iconRes),
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(21.dp),
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = file.name,
                     fontFamily = LocalFontFamily.current,
-                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontSize = 14.sp,
+                    fontWeight = if (isDirectory) androidx.compose.ui.text.font.FontWeight.Medium else androidx.compose.ui.text.font.FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (showSize && !file.isDirectory) {
-                    Text(
-                        text = formatFileSize(file.length()),
-                        fontFamily = LocalFontFamily.current,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else if (file.isDirectory) {
+                if (isDirectory) {
                     Text(
                         text = "Folder",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                } else if (showSize) {
+                    Text(
+                        text = "${formatFileSize(file.length())} • ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(file.lastModified()))}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
                 }
             }
-            if (file.isDirectory && !selectMode) {
+            if (isDirectory && !selectMode) {
                 Icon(
                     painterResource(R.drawable.ic_chevron_right),
                     contentDescription = null,
