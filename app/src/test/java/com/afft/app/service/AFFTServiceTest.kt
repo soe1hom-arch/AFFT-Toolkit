@@ -534,6 +534,34 @@ class AFFTServiceTest {
     }
 
     @Test
+    fun deleteFileWithSafety_allowsInternalExtractionButProtectsItsRootAndLinkTargets() = runBlocking {
+        val service = newService()
+        val root = service.getFilesystemContentsDir()
+        val outside = tmp.newFolder("outside")
+        val sentinel = File(outside, "keep").apply { writeText("keep") }
+        val output = File(root, "system").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(output, "external").toPath(), outside.toPath())
+
+        assertFalse(service.deleteFileWithSafety(root))
+        assertTrue(service.deleteFileWithSafety(output))
+        assertEquals("keep", sentinel.readText())
+    }
+
+    @Test
+    fun deleteFileWithSafety_rejectsIntermediateSymlinkEscape() = runBlocking {
+        val service = newService()
+        val outside = tmp.newFolder("outside")
+        val sentinel = File(outside, "keep").apply { writeText("keep") }
+        val link = File(service.getFilesystemContentsDir(), "outside-link")
+        java.nio.file.Files.createSymbolicLink(link.toPath(), outside.toPath())
+
+        assertFalse(service.deleteFileWithSafety(File(link, "keep")))
+        assertEquals("keep", sentinel.readText())
+        assertTrue(service.deleteFileWithSafety(link))
+        assertEquals("keep", sentinel.readText())
+    }
+
+    @Test
     fun deleteFileWithSafety_protectsRootAndReportsFullPaths() = runBlocking {
         val work = File(tmp.root, "work").apply { mkdirs() }
         val downloads = File(tmp.root, "downloads/AFFT").apply { mkdirs() }
@@ -581,6 +609,70 @@ class AFFTServiceTest {
         val destDir = File(service.getWorkDir(), "dest").apply { mkdirs() }
 
         assertFalse(service.copyFileTo(missing, destDir))
+    }
+
+    @Test
+    fun copyFileTo_preservesLinksWithoutFollowingTargets() = runBlocking {
+        val service = newService()
+        val outside = tmp.newFolder("outside")
+        File(outside, "keep").writeText("outside")
+        val source = File(service.getWorkDir(), "source").apply { mkdirs() }
+        File(source, "file").writeText("content")
+        val link = File(source, "link").toPath()
+        java.nio.file.Files.createSymbolicLink(link, outside.toPath())
+        val dest = File(service.getWorkDir(), "dest").apply { mkdirs() }
+
+        assertTrue(service.copyFileTo(source, dest))
+        val copiedLink = File(dest, "source/link").toPath()
+        assertTrue(java.nio.file.Files.isSymbolicLink(copiedLink))
+        assertEquals(outside.toPath(), java.nio.file.Files.readSymbolicLink(copiedLink))
+        assertEquals("content", File(dest, "source/file").readText())
+    }
+
+    @Test
+    fun copyFileTo_rejectsDestinationInsideSource() = runBlocking {
+        val service = newService()
+        val source = File(service.getWorkDir(), "source").apply { mkdirs() }
+        val nested = File(source, "nested").apply { mkdirs() }
+
+        assertFalse(service.copyFileTo(source, nested))
+        assertFalse(File(nested, "source").exists())
+    }
+
+    @Test
+    fun copyFileTo_doesNotOverwriteExistingDestination() = runBlocking {
+        val service = newService()
+        val source = File(service.getWorkDir(), "sample").apply { writeText("new") }
+        val dest = File(service.getWorkDir(), "dest").apply { mkdirs() }
+        File(dest, "sample").writeText("previous")
+
+        assertTrue(service.copyFileTo(source, dest))
+        assertEquals("previous", File(dest, "sample").readText())
+        assertEquals("new", File(dest, "sample_1").readText())
+    }
+
+    @Test
+    fun moveFileTo_rejectsSourceOutsideAllowedRoots() = runBlocking {
+        val service = newService()
+        val outside = File(tmp.root, "outside").apply { writeText("keep") }
+        val dest = File(service.getWorkDir(), "dest").apply { mkdirs() }
+
+        assertFalse(service.moveFileTo(outside, dest))
+        assertEquals("keep", outside.readText())
+    }
+
+    @Test
+    fun moveFileTo_sameFilesystemMovesWithoutFollowingLink() = runBlocking {
+        val service = newService()
+        val outside = tmp.newFolder("outside")
+        val sentinel = File(outside, "keep").apply { writeText("keep") }
+        val link = File(service.getWorkDir(), "link")
+        java.nio.file.Files.createSymbolicLink(link.toPath(), outside.toPath())
+        val dest = File(service.getWorkDir(), "dest").apply { mkdirs() }
+
+        assertTrue(service.moveFileTo(link, dest))
+        assertTrue(java.nio.file.Files.isSymbolicLink(File(dest, "link").toPath()))
+        assertEquals("keep", sentinel.readText())
     }
 
     @Test

@@ -18,12 +18,18 @@ package com.afft.app.service
 
 import com.afft.app.util.formatFileSize
 import com.afft.app.util.deleteTreeNoFollow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.nio.file.StandardOpenOption
 import kotlin.coroutines.coroutineContext
 
 /**
@@ -36,7 +42,21 @@ class StorageManager(
     private val exportDir: () -> File,
     private val onLog: (String) -> Unit,
     private val onLiveActivity: (String) -> Unit,
+    private val filesystemContentsDir: (() -> File)? = null,
 ) {
+    private fun allowedRoots(): List<Path> =
+        listOfNotNull(
+            workDir().canonicalFile.toPath(),
+            exportDir().canonicalFile.toPath(),
+            filesystemContentsDir?.invoke()?.canonicalFile?.toPath(),
+        )
+
+    private fun resolvedEntry(file: File): Path {
+        val parent = file.absoluteFile.parentFile?.canonicalFile
+            ?: throw IOException("Direktori induk tidak tersedia")
+        return File(parent, file.name).toPath().normalize()
+    }
+
     fun getFreeSpace(path: String): Long =
         try {
             val dir = File(path)
@@ -66,39 +86,32 @@ class StorageManager(
     suspend fun deleteFileWithSafety(file: File): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                val workDir = workDir()
-                val canonWork = workDir.canonicalPath
-                val canonFile = file.canonicalPath
-                val downloadAFFT = exportDir()
-                val canonDl = downloadAFFT.canonicalPath
+                val target = resolvedEntry(file)
+                val roots = allowedRoots()
 
-                // Izinkan hapus di workDir ATAU di Downloads/AFFT
-                val allowed =
-                    canonFile.startsWith(canonWork + File.separator) ||
-                        canonFile.startsWith(canonDl + File.separator)
+                val allowed = roots.none { target == it } && roots.any { target.startsWith(it) }
                 if (!allowed) {
                     val reason =
-                        if (canonFile == canonWork || canonFile == canonDl) {
+                        if (roots.any { target == it }) {
                             "direktori utama dilindungi"
                         } else {
-                            "di luar work dir & Downloads/AFFT"
+                            "di luar folder yang diizinkan"
                         }
-                    onLog("[ERROR] Safety abort: $canonFile ($reason)")
+                    onLog("[ERROR] Safety abort: $target ($reason)")
                     return@withContext false
                 }
 
                 onLiveActivity("Menghapus ${file.name}...")
-                if (file.isDirectory) {
-                    deleteTreeNoFollow(file)
-                } else {
-                    file.delete()
+                if (Files.notExists(target, LinkOption.NOFOLLOW_LINKS)) {
+                    throw IOException("File tidak ditemukan: $target")
                 }
+                deleteTreeNoFollow(target.toFile())
 
-                if (file.exists()) {
+                if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
                     onLog("[ERROR] Gagal menghapus: ${file.name} (masih ada)")
                     false
                 } else {
-                    onLog("[OK] Dihapus: $canonFile")
+                    onLog("[OK] Dihapus: $target")
                     true
                 }
             } catch (e: Exception) {
@@ -177,57 +190,25 @@ class StorageManager(
     ): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                // Validasi sumber
-                if (!src.exists()) {
-                    onLog("[ERROR] Sumber tidak ditemukan: ${src.absolutePath}")
-                    return@withContext false
-                }
-                if (!src.canRead()) {
-                    onLog("[ERROR] Tidak bisa membaca: ${src.absolutePath} (izin?)")
-                    return@withContext false
-                }
-
-                val size =
-                    if (src.isDirectory) {
-                        src.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-                    } else {
-                        src.length()
-                    }
-                onLog("[INFO] Ukuran: ${formatFileSize(size)}")
-
-                if (!checkStorageSpace(size, destDir.absolutePath)) {
-                    return@withContext false
-                }
-                if (!destDir.exists()) destDir.mkdirs()
-                if (!destDir.exists()) {
-                    onLog("[ERROR] Gagal membuat folder tujuan: ${destDir.absolutePath}")
-                    return@withContext false
-                }
-
+                if (!destDir.exists() && !destDir.mkdirs()) throw IOException("Tidak dapat membuat tujuan: $destDir")
+                if (!destDir.isDirectory) throw IOException("Tujuan bukan folder: $destDir")
+                if (Files.isDirectory(src.toPath(), LinkOption.NOFOLLOW_LINKS) &&
+                    destDir.canonicalFile.toPath().startsWith(src.canonicalFile.toPath())
+                ) throw IOException("Tujuan berada di dalam sumber")
                 val dest = resolveDestFile(src, destDir)
                 onLog("[INFO] Menyalin: ${src.name} → ${dest.parent}")
                 onLiveActivity("Menyalin ${src.name} → ${destDir.name}...")
-
-                if (src.isDirectory) {
-                    src.copyRecursively(dest, overwrite = false)
-                } else {
-                    // Gunakan stream untuk memastikan file benar-benar tersalin
-                    src.inputStream().use { input ->
-                        dest.outputStream().use { output ->
-                            copyStreamCancellable(input, output)
-                        }
-                    }
+                try {
+                    copyTreeNoFollow(src.toPath(), dest.toPath())
+                } catch (e: Exception) {
+                    onLog("[ERROR] Salinan mungkin parsial: ${dest.absolutePath}; sumber tidak dihapus")
+                    throw e
                 }
-
-                // Verifikasi hasil
-                if (dest.exists() && (dest.isDirectory || dest.length() == src.length())) {
-                    onLog("[OK] Disalin: ${src.name} → ${destDir.name}/")
-                    true
-                } else {
-                    val destSize = if (dest.exists()) formatFileSize(dest.length()) else "0"
-                    onLog("[ERROR] Hasil copy tidak valid! Dest size: $destSize")
-                    false
-                }
+                onLog("[OK] Disalin: ${dest.absolutePath}")
+                onLog("[WARN] Metadata firmware belum diverifikasi; salinan bukan hasil siap repack atau flash")
+                true
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 onLog("[ERROR] Gagal menyalin ${src.name}: ${e.message}")
                 false
@@ -241,48 +222,34 @@ class StorageManager(
     ): Boolean {
         return withContext(Dispatchers.IO) {
             try {
-                if (!src.exists()) {
+                val target = resolvedEntry(src)
+                val roots = allowedRoots()
+                if (roots.any { target == it } || roots.none { target.startsWith(it) }) {
+                    onLog("[ERROR] Safety abort: sumber pindah di luar folder yang diizinkan: $target")
+                    return@withContext false
+                }
+                if (Files.notExists(src.toPath(), LinkOption.NOFOLLOW_LINKS)) {
                     onLog("[ERROR] Sumber tidak ditemukan: ${src.absolutePath}")
                     return@withContext false
                 }
-                val size =
-                    if (src.isDirectory) {
-                        src.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-                    } else {
-                        src.length()
-                    }
-                if (!checkStorageSpace(size, destDir.absolutePath)) {
-                    return@withContext false
-                }
-                if (!destDir.exists()) destDir.mkdirs()
+                if (!destDir.exists() && !destDir.mkdirs()) throw IOException("Tidak dapat membuat tujuan: $destDir")
+                if (!destDir.isDirectory) throw IOException("Tujuan bukan folder: $destDir")
+                if (Files.isDirectory(src.toPath(), LinkOption.NOFOLLOW_LINKS) &&
+                    destDir.canonicalFile.toPath().startsWith(src.canonicalFile.toPath())
+                ) throw IOException("Tujuan berada di dalam sumber")
                 val dest = resolveDestFile(src, destDir)
                 onLog("[INFO] Memindah: ${src.name} → ${dest.parent}")
                 onLiveActivity("Memindah ${src.name} → ${destDir.name}...")
 
-                var moved = src.renameTo(dest)
-                if (!moved) {
-                    onLog("[INFO] rename gagal, fallback copy+delete...")
-                    if (src.isDirectory) {
-                        check(src.copyRecursively(dest, overwrite = true)) { "Gagal menyalin seluruh isi sumber" }
-                        deleteTreeNoFollow(src)
-                    } else {
-                        src.inputStream().use { input ->
-                            dest.outputStream().use { output ->
-                                copyStreamCancellable(input, output)
-                            }
-                        }
-                        src.delete()
-                    }
-                    moved = true
-                }
-
-                if (dest.exists()) {
+                if (src.renameTo(dest)) {
                     onLog("[OK] Dipindah: ${src.name} → ${destDir.name}/")
                     true
                 } else {
-                    onLog("[ERROR] Gagal memindah: ${src.name}")
+                    onLog("[ERROR] Pemindahan langsung gagal; sumber tidak dihapus. Gunakan Salin jika diperlukan.")
                     false
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 onLog("[ERROR] Gagal memindah ${src.name}: ${e.message}")
                 false
@@ -296,7 +263,7 @@ class StorageManager(
     ): File {
         var dest = File(destDir, src.name)
         var counter = 1
-        while (dest.exists()) {
+        while (Files.exists(dest.toPath(), LinkOption.NOFOLLOW_LINKS)) {
             val name = src.nameWithoutExtension
             val ext = src.extension
             val newName = if (ext.isNotEmpty()) "${name}_$counter.$ext" else "${name}_$counter"
@@ -304,6 +271,37 @@ class StorageManager(
             counter++
         }
         return dest
+    }
+
+    private suspend fun copyTreeNoFollow(source: Path, dest: Path) {
+        coroutineContext.ensureActive()
+        val attrs = Files.readAttributes(source, java.nio.file.attribute.BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+        when {
+            attrs.isSymbolicLink -> Files.createSymbolicLink(dest, Files.readSymbolicLink(source))
+            attrs.isDirectory -> {
+                Files.createDirectory(dest)
+                Files.newDirectoryStream(source).use { entries ->
+                    for (entry in entries) {
+                        copyTreeNoFollow(entry, dest.resolve(entry.fileName))
+                    }
+                }
+            }
+            attrs.isRegularFile -> {
+                Files.newInputStream(source, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS).use { input ->
+                    Files.newOutputStream(dest, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE).use { output ->
+                        val buffer = ByteArray(1 shl 16)
+                        while (true) {
+                            coroutineContext.ensureActive()
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            output.write(buffer, 0, read)
+                        }
+                    }
+                }
+                if (Files.size(dest) != attrs.size()) throw IOException("Ukuran salinan tidak cocok: $source")
+            }
+            else -> throw IOException("Jenis file tidak didukung: $source")
+        }
     }
 
     internal suspend fun copyStreamCancellable(

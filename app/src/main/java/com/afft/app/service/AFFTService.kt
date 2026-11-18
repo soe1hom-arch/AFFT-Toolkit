@@ -68,6 +68,7 @@ class AFFTService(
             exportDir = ::getExportDir,
             onLog = ::addLog,
             onLiveActivity = ::setLiveActivity,
+            filesystemContentsDir = ::getFilesystemContentsDir,
         )
 
     private val _isRunning = MutableStateFlow(false)
@@ -2202,6 +2203,7 @@ class AFFTService(
                 }
 
                 var copiedCount = 0
+                var failedCount = 0
                 for (subdir in selectedFolders) {
                     when (subdir) {
                         "input" -> {
@@ -2211,6 +2213,8 @@ class AFFTService(
                                 if (!inputFiles.isNullOrEmpty()) {
                                     if (moveDirectoryToDownloads(inputDir, "input")) {
                                         copiedCount++
+                                    } else {
+                                        failedCount++
                                     }
                                 } else {
                                     addLog("  [INFO] input/ is empty, skipping")
@@ -2229,6 +2233,8 @@ class AFFTService(
                                 addLog("  [INFO] contents/ is empty, skipping")
                             } else if (copyDirectoryToDownloads(contents, "contents")) {
                                 copiedCount++
+                            } else {
+                                failedCount++
                             }
                         }
                         else -> {
@@ -2238,6 +2244,8 @@ class AFFTService(
                                 if (!files.isNullOrEmpty()) {
                                     if (moveDirectoryToDownloads(src, subdir)) {
                                         copiedCount++
+                                    } else {
+                                        failedCount++
                                     }
                                 } else {
                                     addLog("  [INFO] $subdir/ is empty, skipping")
@@ -2249,7 +2257,10 @@ class AFFTService(
                     }
                 }
 
-                if (copiedCount > 0) {
+                if (failedCount > 0) {
+                    result = failResult("Export Selected", "$failedCount folder gagal diekspor; $copiedCount berhasil")
+                    addLog("[ERROR] ${result.message}")
+                } else if (copiedCount > 0) {
                     addLog("[OK] $copiedCount folder(s) diekspor ke Downloads/AFFT/")
                     updateProgress("Ekspor selesai! $copiedCount folder(s) exported")
                     result =
@@ -2325,67 +2336,18 @@ class AFFTService(
     private suspend fun moveDirectoryToDownloads(
         srcDir: File,
         subdirName: String,
-    ): Boolean =
-        try {
-            // Gunakan direct path (app punya MANAGE_EXTERNAL_STORAGE)
-            val baseDir = getExportDir()
-            if (!baseDir.exists()) baseDir.mkdirs()
-            val destDir = File(baseDir, subdirName)
-            // Hapus dulu jika sudah ada
-            deleteTreeNoFollow(destDir)
-
-            // Coba rename dulu (instan kalo satu filesystem)
-            var moved = srcDir.renameTo(destDir)
-
-            if (!moved) {
-                // rename gagal (beda partisi), fallback copy (lebih lambat tapi aman)
-                addLog("  [INFO] rename gagal (beda partisi?), fallback copy...")
-                check(srcDir.copyRecursively(destDir, overwrite = true)) { "Gagal menyalin seluruh isi sumber" }
-                if (destDir.exists()) {
-                    // Hapus sumber, tapi jangan gagalkan export kalau hapus gagal
-                    try {
-                        deleteTreeNoFollow(srcDir)
-                    } catch (e: Exception) {
-                        addLog("  [WARN] Gagal menghapus sumber: ${e.message}")
-                    }
-                    moved = true
-                }
-            }
-
-            if (moved && destDir.exists()) {
-                val fileCount = destDir.walkTopDown().count() - 1
-                addLog("  Dipindah: $subdirName/ ($fileCount items)")
-                true
-            } else {
-                addLog("  [ERROR] Gagal memindah $subdirName/")
-                false
-            }
-        } catch (e: Exception) {
-            addLog("  [ERROR] Export $subdirName gagal: ${e.message}")
-            false
-        }
+    ): Boolean {
+        addLog("[INFO] Ekspor $subdirName sebagai salinan; sumber tetap disimpan")
+        return storageManager.copyFileTo(srcDir, getExportDir())
+    }
 
     private suspend fun copyDirectoryToDownloads(
         srcDir: File,
         subdirName: String,
-    ): Boolean =
-        try {
-            val baseDir = getExportDir()
-            if (!baseDir.exists()) baseDir.mkdirs()
-            val destDir = File(baseDir, subdirName)
-            deleteTreeNoFollow(destDir)
-            check(srcDir.copyRecursively(destDir, overwrite = true)) { "Gagal menyalin seluruh isi sumber" }
-            if (destDir.isDirectory) {
-                addLog("  Disalin: $subdirName/ (${destDir.walkTopDown().count() - 1} items)")
-                true
-            } else {
-                addLog("  [ERROR] Gagal menyalin $subdirName/")
-                false
-            }
-        } catch (e: Exception) {
-            addLog("  [ERROR] Export $subdirName gagal: ${e.message}")
-            false
-        }
+    ): Boolean {
+        addLog("[INFO] Ekspor $subdirName sebagai salinan; sumber tetap disimpan")
+        return storageManager.copyFileTo(srcDir, getExportDir())
+    }
 
     suspend fun listInputFiles(): List<File> {
         val inputDir = getInputDir()

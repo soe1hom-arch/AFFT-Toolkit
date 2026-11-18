@@ -19,11 +19,11 @@ import com.afft.app.ui.theme.LocalFontFamily
 import com.afft.app.ui.theme.LocalIconTint
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -69,7 +69,7 @@ fun FileManagerScreen(
     var pathHistory by remember { mutableStateOf<List<File>>(emptyList()) }
     var showSize by rememberSaveable { mutableStateOf(false) }
     var selectedFiles by remember { mutableStateOf<Set<File>>(emptySet()) }
-    var selectMode by rememberSaveable { mutableStateOf(false) }
+    var selectMode by remember { mutableStateOf(false) }
     var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
     var showCopyDestDialog by rememberSaveable { mutableStateOf(false) }
     var showMoveDestDialog by rememberSaveable { mutableStateOf(false) }
@@ -86,6 +86,11 @@ fun FileManagerScreen(
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var showPropertiesFor by remember { mutableStateOf<File?>(null) }
     var showPropertiesDialog by rememberSaveable { mutableStateOf(false) }
+    var showLocations by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    var listError by remember { mutableStateOf<String?>(null) }
+    var listLoading by remember { mutableStateOf(false) }
+    var refreshVersion by remember { mutableIntStateOf(0) }
 
     val workDir = afftService.getWorkDir()
     val tempDir = afftService.getTempDir()
@@ -99,42 +104,45 @@ fun FileManagerScreen(
         }
     }
 
-    suspend fun refreshFiles(dir: File) =
-        withContext(Dispatchers.IO) {
-            val rawList = dir.listFiles()?.toList() ?: emptyList()
-            val filtered =
-                if (searchQuery.isBlank()) {
-                    rawList
-                } else {
-                    rawList.filter { it.name.lowercase().contains(searchQuery.lowercase()) }
-                }
+    suspend fun refreshFiles(dir: File) {
+        val version = ++refreshVersion
+        val query = searchQuery
+        val mode = sortMode
+        val ascending = sortAsc
+        currentDir = dir
+        listLoading = true
+        listError = null
+        files = emptyList()
+        selectedFiles = emptySet()
+        selectMode = false
+        val (list, error) =
+            withContext(Dispatchers.IO) {
+                val entries = dir.listFiles()
+                val rawList = entries?.toList() ?: emptyList()
+                val filtered =
+                    if (query.isBlank()) {
+                        rawList
+                    } else {
+                        rawList.filter { it.name.lowercase().contains(query.lowercase()) }
+                    }
 
-            val sorted =
-                filtered.sortedWith(
-                    when (sortMode) {
-                        "date" ->
-                            compareByDescending<File> { !it.isDirectory }
-                                .thenByDescending { it.lastModified() }
-                        "size" ->
-                            compareBy<File> { !it.isDirectory }
-                                .thenBy { if (it.isDirectory) 0L else it.length() }
-                        "type" ->
-                            compareBy<File> { !it.isDirectory }
-                                .thenBy { it.extension.lowercase() }
-                        else ->
-                            compareBy<File> { !it.isDirectory }
-                                .thenBy { it.name.lowercase() }
-                    },
-                )
-            val list = if (sortAsc) sorted else sorted.reversed()
-
-            withContext(Dispatchers.Main) {
-                currentDir = dir
-                files = list
-                selectedFiles = emptySet()
-                selectMode = false
+                val comparator =
+                    when (mode) {
+                        "date" -> compareBy<File> { it.lastModified() }
+                        "size" -> compareBy<File> { it.length() }
+                        "type" -> compareBy<File> { it.extension.lowercase() }
+                        else -> compareBy<File> { it.name.lowercase() }
+                    }
+                val ordered = if (ascending) comparator else comparator.reversed()
+                val list = filtered.sortedWith(compareBy<File> { !it.isDirectory }.then(ordered).thenBy { it.name.lowercase() })
+                list to if (entries == null) "Folder tidak dapat dibaca atau tidak tersedia." else null
             }
+        if (version == refreshVersion) {
+            files = list
+            listError = error
+            listLoading = false
         }
+    }
 
     // File picker for importing from external storage
     val filePickerLauncher =
@@ -166,15 +174,47 @@ fun FileManagerScreen(
         selectMode = selectedFiles.isNotEmpty()
     }
 
+    fun navigateTo(dir: File) {
+        currentDir?.let { current ->
+            if (current != dir) pathHistory = pathHistory + current
+        }
+        searchQuery = ""
+        showSearch = false
+        scope.launch { refreshFiles(dir) }
+    }
+
+    fun navigateBack() {
+        val previous = pathHistory.last()
+        pathHistory = pathHistory.dropLast(1)
+        searchQuery = ""
+        showSearch = false
+        scope.launch { refreshFiles(previous) }
+    }
+
     LaunchedEffect(Unit) {
         refreshFiles(inputDir)
+    }
+
+    BackHandler(enabled = selectMode || showSearch || pathHistory.isNotEmpty()) {
+        when {
+            selectMode -> {
+                selectedFiles = emptySet()
+                selectMode = false
+            }
+            showSearch -> {
+                showSearch = false
+                searchQuery = ""
+                scope.launch { currentDir?.let { refreshFiles(it) } }
+            }
+            pathHistory.isNotEmpty() -> navigateBack()
+        }
     }
 
     Column(
         modifier =
             Modifier
                 .fillMaxSize()
-                .padding(8.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         // Header
         Row(
@@ -182,11 +222,20 @@ fun FileManagerScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                "AFFT Manager",
-                style = MaterialTheme.typography.titleLarge,
-                fontFamily = LocalFontFamily.current,
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    if (selectMode) "${selectedFiles.size} dipilih" else "AFFT Manager",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontFamily = LocalFontFamily.current,
+                )
+                if (!selectMode) {
+                    Text(
+                        "Kelola file dan hasil ekstraksi",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             if (selectMode) {
                 TextButton(onClick = {
                     selectedFiles = emptySet()
@@ -194,10 +243,26 @@ fun FileManagerScreen(
                 }) {
                     Text("Batal", fontSize = 12.sp)
                 }
+            } else {
+                IconButton(onClick = {
+                    showSearch = !showSearch
+                    if (!showSearch && searchQuery.isNotEmpty()) {
+                        searchQuery = ""
+                        scope.launch { currentDir?.let { refreshFiles(it) } }
+                    }
+                }) {
+                    Icon(painterResource(R.drawable.ic_search), "Cari", tint = LocalIconTint.current)
+                }
+                IconButton(
+                    onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
+                    enabled = !operationInProgress,
+                ) {
+                    Icon(painterResource(R.drawable.ic_file_open), "Impor file", tint = LocalIconTint.current)
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         // Path bar
         Row(
@@ -205,25 +270,14 @@ fun FileManagerScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (pathHistory.isNotEmpty()) {
-                IconButton(onClick = {
-                    scope.launch {
-                        val prev = pathHistory.last()
-                        pathHistory = pathHistory.dropLast(1)
-                        refreshFiles(prev)
-                    }
-                }) {
+                IconButton(onClick = { navigateBack() }) {
                     Icon(painterResource(R.drawable.ic_arrow_back), "Back", tint = LocalIconTint.current)
                 }
             }
             // Parent directory button
             IconButton(
                 onClick = {
-                    scope.launch {
-                        currentDir?.parentFile?.let { parent ->
-                            pathHistory = pathHistory + (currentDir ?: inputDir)
-                            refreshFiles(parent)
-                        }
-                    }
+                    currentDir?.parentFile?.let { parent -> navigateTo(parent) }
                 },
                 enabled = currentDir != null && currentDir?.parentFile != null,
                 modifier = Modifier.size(36.dp),
@@ -254,101 +308,45 @@ fun FileManagerScreen(
 
         Spacer(modifier = Modifier.height(2.dp))
 
-        // Quick location + actions row 1 (chips scrollable agar tidak terpotong di layar sempit)
+        // Quick locations
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier =
-                    Modifier
-                        .weight(1f, fill = false)
-                        .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                AssistChip(
-                    onClick = {
-                        scope.launch {
-                            pathHistory = emptyList()
-                            refreshFiles(File("/storage/emulated/0"))
-                        }
-                    },
-                    label = { Text("Device", fontSize = 12.sp) },
-                    leadingIcon = {
-                        Icon(
-                            painterResource(R.drawable.ic_phone_android),
-                            null,
-                            tint = LocalIconTint.current,
-                        )
-                    },
-                )
-                AssistChip(
-                    onClick = {
-                        scope.launch {
-                            pathHistory = emptyList()
-                            refreshFiles(tempDir)
-                        }
-                    },
-                    label = { Text("Temp", fontSize = 12.sp) },
-                    leadingIcon = { Icon(painterResource(R.drawable.ic_folder), null, tint = LocalIconTint.current) },
-                )
-                AssistChip(
-                    onClick = {
-                        scope.launch {
-                            pathHistory = emptyList()
-                            refreshFiles(workDir)
-                        }
-                    },
-                    label = { Text("Work", fontSize = 12.sp) },
-                    leadingIcon = { Icon(painterResource(R.drawable.ic_folder), null, tint = LocalIconTint.current) },
-                )
-                AssistChip(
-                    onClick = {
-                        scope.launch {
-                            pathHistory = emptyList()
-                            refreshFiles(inputDir)
-                        }
-                    },
-                    label = { Text("Input", fontSize = 12.sp) },
-                    leadingIcon = {
-                        Icon(
-                            painterResource(R.drawable.ic_drive_file_move),
-                            null,
-                            tint = LocalIconTint.current,
-                        )
-                    },
-                )
-                AssistChip(
-                    onClick = {
-                        scope.launch {
-                            pathHistory = emptyList()
-                            refreshFiles(afftService.getFilesystemContentsDir())
-                        }
-                    },
-                    label = { Text("Filesystem", fontSize = 12.sp) },
-                    leadingIcon = { Icon(painterResource(R.drawable.ic_folder), null, tint = LocalIconTint.current) },
-                )
-                if (downloadDir.exists()) {
-                    AssistChip(
-                        onClick = {
-                            scope.launch {
-                                pathHistory = emptyList()
-                                refreshFiles(downloadDir)
-                            }
-                        },
-                        label = { Text("DL", fontSize = 12.sp) },
-                        leadingIcon = { Icon(painterResource(R.drawable.ic_download), null, tint = LocalIconTint.current) },
+            Box(modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = { showLocations = true }) {
+                    Icon(painterResource(R.drawable.ic_folder_open), null, tint = LocalIconTint.current)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Lokasi")
+                }
+                DropdownMenu(expanded = showLocations, onDismissRequest = { showLocations = false }) {
+                    val locations = listOf(
+                        "Input" to inputDir,
+                        "Hasil filesystem (privat)" to afftService.getFilesystemContentsDir(),
+                        "Folder kerja" to workDir,
+                        "Temp" to tempDir,
+                        "Downloads/AFFT" to downloadDir,
+                        "Penyimpanan perangkat" to File("/storage/emulated/0"),
                     )
+                    locations.forEach { (label, dir) ->
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            onClick = {
+                                showLocations = false
+                                navigateTo(dir)
+                            },
+                        )
+                    }
                 }
             }
-            // Import button (selalu terlihat di kanan)
             IconButton(
-                onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
+                onClick = {
+                    newFolderName = ""
+                    showCreateFolderDialog = true
+                },
                 enabled = !operationInProgress,
-                modifier = Modifier.size(36.dp),
             ) {
-                Icon(painterResource(R.drawable.ic_file_open), "Import", tint = LocalIconTint.current)
+                Icon(painterResource(R.drawable.ic_create_new_folder), "Folder baru", tint = LocalIconTint.current)
             }
         }
 
@@ -360,108 +358,36 @@ fun FileManagerScreen(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // Sort chips
-            FilterChip(
-                selected = sortMode == "name",
-                onClick = {
-                    if (sortMode == "name") {
-                        sortAsc = !sortAsc
-                    } else {
-                        sortMode = "name"
-                        sortAsc = true
-                    }
-                    scope.launch { currentDir?.let { refreshFiles(it) } }
-                },
-                label = { Text("Nama", fontSize = 10.sp) },
-                leadingIcon = {
-                    Icon(
-                        if (sortAsc) {
-                            painterResource(
-                                R.drawable.ic_arrow_up,
-                            )
-                        } else {
-                            painterResource(R.drawable.ic_arrow_down)
-                        },
-                        null,
-                        tint = LocalIconTint.current,
-                    )
-                },
-                modifier = Modifier.height(28.dp),
+            Text(
+                if (listLoading) "Memuat..." else if (listError != null) "Tidak dapat membaca folder" else "${files.size} item",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            FilterChip(
-                selected = sortMode == "date",
-                onClick = {
-                    if (sortMode == "date") {
-                        sortAsc = !sortAsc
-                    } else {
-                        sortMode = "date"
-                        sortAsc = false
-                    }
-                    scope.launch { currentDir?.let { refreshFiles(it) } }
-                },
-                label = { Text("Tgl", fontSize = 10.sp) },
-                leadingIcon = {
-                    Icon(
-                        if (sortAsc) {
-                            painterResource(
-                                R.drawable.ic_arrow_up,
-                            )
-                        } else {
-                            painterResource(R.drawable.ic_arrow_down)
-                        },
-                        null,
-                        tint = LocalIconTint.current,
-                    )
-                },
-                modifier = Modifier.height(28.dp),
-            )
-            FilterChip(
-                selected = sortMode == "size",
-                onClick = {
-                    if (sortMode == "size") {
-                        sortAsc = !sortAsc
-                    } else {
-                        sortMode = "size"
-                        sortAsc = false
-                    }
-                    scope.launch { currentDir?.let { refreshFiles(it) } }
-                },
-                label = { Text("Ukuran", fontSize = 10.sp) },
-                leadingIcon = {
-                    Icon(
-                        if (sortAsc) {
-                            painterResource(
-                                R.drawable.ic_arrow_up,
-                            )
-                        } else {
-                            painterResource(R.drawable.ic_arrow_down)
-                        },
-                        null,
-                        tint = LocalIconTint.current,
-                    )
-                },
-                modifier = Modifier.height(28.dp),
-            )
-
             Spacer(modifier = Modifier.weight(1f))
-
-            // Search toggle
-            IconButton(
-                onClick = { showSearch = !showSearch },
-                modifier = Modifier.size(32.dp),
-            ) {
-                Icon(painterResource(R.drawable.ic_search), "Search", tint = LocalIconTint.current)
-            }
-            // Create folder
-            IconButton(
-                onClick = {
-                    newFolderName = ""
-                    showCreateFolderDialog = true
-                },
-                enabled = !operationInProgress,
-                modifier = Modifier.size(32.dp),
-            ) {
-                Icon(painterResource(R.drawable.ic_create_new_folder), "Folder Baru", tint = LocalIconTint.current)
+            Box {
+                TextButton(onClick = { showSortMenu = true }) {
+                    val label = when (sortMode) {
+                        "date" -> "Tanggal"
+                        "size" -> "Ukuran"
+                        "type" -> "Jenis"
+                        else -> "Nama"
+                    }
+                    Text("Urut: $label ${if (sortAsc) "↑" else "↓"}")
+                }
+                DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                    listOf("name" to "Nama", "date" to "Tanggal", "size" to "Ukuran", "type" to "Jenis")
+                        .forEach { (mode, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    sortAsc = if (sortMode == mode) !sortAsc else true
+                                    sortMode = mode
+                                    showSortMenu = false
+                                    scope.launch { currentDir?.let { refreshFiles(it) } }
+                                },
+                            )
+                        }
+                }
             }
         }
 
@@ -512,10 +438,7 @@ fun FileManagerScreen(
                                 if (selectMode) {
                                     toggleSelectFile(file)
                                 } else if (file.isDirectory) {
-                                    scope.launch {
-                                        pathHistory = pathHistory + (currentDir ?: tempDir)
-                                        refreshFiles(file)
-                                    }
+                                    navigateTo(file)
                                 }
                             },
                             onLongClick = {
@@ -525,30 +448,20 @@ fun FileManagerScreen(
                         )
                     }
                 }
-                val minRows = 3
-                val currentRows = files.size
-                if (currentRows < minRows) {
-                    items(minRows - currentRows) {
+                if (files.isEmpty()) {
+                    item {
                         Box(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(52.dp)
-                                    .padding(vertical = 1.dp),
-                        )
+                            modifier = Modifier.fillMaxWidth().padding(32.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                if (listLoading) "Memuat..." else listError
+                                    ?: if (searchQuery.isNotBlank()) "Tidak ada hasil pencarian" else "Folder kosong",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
-                }
-            }
-            if (files.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        "Folder kosong atau tidak ada file",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
         }
@@ -572,9 +485,9 @@ fun FileManagerScreen(
                 // Left: info
                 Text(
                     if (selectMode) {
-                        "${selectedFiles.size} selected"
+                        "${selectedFiles.size} dipilih"
                     } else {
-                        "${files.size} item(s)"
+                        "Tekan lama untuk memilih"
                     },
                     style = MaterialTheme.typography.bodySmall,
                     fontFamily = LocalFontFamily.current,
@@ -638,15 +551,8 @@ fun FileManagerScreen(
                             Icon(painterResource(R.drawable.ic_delete), "Delete", tint = LocalIconTint.current)
                         }
                     } else {
-                        // Default actions when no selection
-                        IconButton(
-                            onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
-                            modifier = Modifier.size(36.dp),
-                        ) {
-                            Icon(painterResource(R.drawable.ic_file_open), "Import", tint = LocalIconTint.current)
-                        }
                         TextButton(onClick = { showSize = !showSize }) {
-                            Text(if (showSize) "Hide" else "Size", fontSize = 11.sp)
+                            Text(if (showSize) "Sembunyikan ukuran" else "Tampilkan ukuran", fontSize = 11.sp)
                         }
                     }
                 }
@@ -754,7 +660,7 @@ fun FileManagerScreen(
                                 if (afftService.copyFileTo(f, downloadDir)) ok++
                             }
                             operationInProgress = false
-                            toastMessage = "Disalin ke Downloads: $ok file"
+                            toastMessage = "Salin: $ok berhasil, ${selectedFiles.size - ok} gagal. Lihat konsol untuk detail."
                             refreshFiles(currentDir ?: inputDir)
                         }
                     },
@@ -773,7 +679,7 @@ fun FileManagerScreen(
                                 if (afftService.copyFileTo(f, inputDir)) ok++
                             }
                             operationInProgress = false
-                            toastMessage = "Disalin ke input/: $ok file"
+                            toastMessage = "Salin: $ok berhasil, ${selectedFiles.size - ok} gagal. Lihat konsol untuk detail."
                             refreshFiles(currentDir ?: inputDir)
                         }
                     },
@@ -793,7 +699,7 @@ fun FileManagerScreen(
                                 if (afftService.copyFileTo(f, dest)) ok++
                             }
                             operationInProgress = false
-                            toastMessage = "Disalin ke folder saat ini: $ok file"
+                            toastMessage = "Salin: $ok berhasil, ${selectedFiles.size - ok} gagal. Lihat konsol untuk detail."
                             refreshFiles(currentDir ?: inputDir)
                         }
                     },
@@ -829,7 +735,7 @@ fun FileManagerScreen(
                                 if (afftService.moveFileTo(f, downloadDir)) ok++
                             }
                             operationInProgress = false
-                            toastMessage = "Dipindah ke Downloads: $ok file"
+                            toastMessage = "Pindah: $ok berhasil, ${selectedFiles.size - ok} gagal. Lihat konsol untuk detail."
                             refreshFiles(currentDir ?: inputDir)
                         }
                     },
@@ -848,7 +754,7 @@ fun FileManagerScreen(
                                 if (afftService.moveFileTo(f, inputDir)) ok++
                             }
                             operationInProgress = false
-                            toastMessage = "Dipindah ke input/: $ok file"
+                            toastMessage = "Pindah: $ok berhasil, ${selectedFiles.size - ok} gagal. Lihat konsol untuk detail."
                             refreshFiles(currentDir ?: inputDir)
                         }
                     },
@@ -868,7 +774,7 @@ fun FileManagerScreen(
                                 if (afftService.moveFileTo(f, dest)) ok++
                             }
                             operationInProgress = false
-                            toastMessage = "Dipindah ke folder saat ini: $ok file"
+                            toastMessage = "Pindah: $ok berhasil, ${selectedFiles.size - ok} gagal. Lihat konsol untuk detail."
                             refreshFiles(currentDir ?: inputDir)
                         }
                     },
@@ -888,7 +794,7 @@ fun FileManagerScreen(
                                 if (afftService.moveFileTo(f, dest)) ok++
                             }
                             operationInProgress = false
-                            toastMessage = "Dipindah ke Downloads: $ok file"
+                            toastMessage = "Pindah: $ok berhasil, ${selectedFiles.size - ok} gagal. Lihat konsol untuk detail."
                             refreshFiles(currentDir ?: inputDir)
                         }
                     },
@@ -1089,8 +995,8 @@ fun FileRow(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .height(52.dp)
-                .padding(vertical = 1.dp)
+                .height(64.dp)
+                .padding(horizontal = 4.dp, vertical = 2.dp)
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
@@ -1100,7 +1006,6 @@ fun FileRow(
                 containerColor =
                     when {
                         isSelected -> MaterialTheme.colorScheme.primaryContainer
-                        file.isDirectory -> MaterialTheme.colorScheme.surfaceVariant
                         else -> MaterialTheme.colorScheme.surface
                     },
             ),
@@ -1131,7 +1036,7 @@ fun FileRow(
                 contentDescription = null,
                 tint = LocalIconTint.current,
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = file.name,
@@ -1147,7 +1052,20 @@ fun FileRow(
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                } else if (file.isDirectory) {
+                    Text(
+                        text = "Folder",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
+            }
+            if (file.isDirectory && !selectMode) {
+                Icon(
+                    painterResource(R.drawable.ic_chevron_right),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

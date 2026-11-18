@@ -133,6 +133,12 @@ Repack supported workflows and access generated output.
 - Output to `Download/AFFT`
 - File management through AFFT Manager
 
+Exports create copies without deleting existing output or the source. Symbolic
+links are copied as links; export fails if the destination does not support
+them, and may leave a partial copy. Exported filesystem metadata is not
+validated for repack or flashing. File Manager moves require a direct rename;
+if that fails (for example across filesystems), the source is retained.
+
 </td>
 </tr>
 </table>
