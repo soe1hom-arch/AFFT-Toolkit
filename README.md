@@ -11,6 +11,11 @@
 
 A native Android toolkit for analyzing, unpacking, modifying, and repacking Android firmware — directly on your device.
 
+> **Data-loss warning:** Existing builds can follow filesystem symlinks while
+> deleting extracted folders, potentially deleting files outside the workspace.
+> Stop using AFFT, force-stop it, and revoke its all-files access until a fix
+> has been independently validated. Do not retry extraction or cleaning.
+
 <br>
 
 <a href="https://github.com/soe1hom-arch/AFFT-Toolkit/releases/latest">

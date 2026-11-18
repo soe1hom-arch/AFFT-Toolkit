@@ -141,6 +141,51 @@ class AFFTServiceTest {
     }
 
     @Test
+    fun extractFilesystem_replacingPreviousOutputDoesNotFollowSymlinks() = runBlocking {
+        fakeDebugfs("")
+        val service = newService()
+        val input = ext4Image()
+        val first = service.extractFilesystem(input)
+        assertTrue(first.ok)
+        val outside = tmp.newFolder("outside")
+        val sentinel = File(outside, "keep.txt").apply { writeText("keep") }
+        java.nio.file.Files.createSymbolicLink(File(first.outputPath, "outside-link").toPath(), outside.toPath())
+
+        val second = service.extractFilesystem(input)
+
+        assertTrue(second.ok)
+        assertEquals("keep", sentinel.readText())
+    }
+
+    @Test
+    fun cleanFilesystemContentsDoesNotFollowSymlinks() {
+        val service = newService()
+        val outside = tmp.newFolder("outside")
+        val sentinel = File(outside, "keep.txt").apply { writeText("keep") }
+        val contents = service.getFilesystemContentsDir()
+        java.nio.file.Files.createSymbolicLink(File(contents, "outside-link").toPath(), outside.toPath())
+        File(service.getTempDir(), "contents").mkdirs()
+
+        service.cleanSelected(listOf("contents"))
+
+        assertEquals("keep", sentinel.readText())
+    }
+
+    @Test
+    fun fileManagerDeleteDoesNotFollowNestedSymlinks() = runBlocking {
+        val service = newService()
+        val outside = tmp.newFolder("outside")
+        val sentinel = File(outside, "keep.txt").apply { writeText("keep") }
+        val selected = File(service.getWorkDir(), "selected").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(selected, "outside-link").toPath(), outside.toPath())
+
+        assertTrue(service.deleteFileWithSafety(selected))
+
+        assertFalse(selected.exists())
+        assertEquals("keep", sentinel.readText())
+    }
+
+    @Test
     fun extractFilesystem_preservesLiveStatusWhenConsoleIsCleared() = runBlocking {
         fakeDebugfs("sleep 1")
         val service = newService()

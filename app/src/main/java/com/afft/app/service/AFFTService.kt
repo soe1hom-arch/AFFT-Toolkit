@@ -23,6 +23,7 @@ import com.afft.app.model.OperationResult
 import com.afft.app.util.BinaryManager
 import com.afft.app.util.ShellExecutor
 import com.afft.app.util.SparseImage
+import com.afft.app.util.deleteTreeNoFollow
 import com.afft.app.util.formatFileSize
 import com.afft.app.util.parsePayloadProgressLine
 import kotlinx.coroutines.CancellationException
@@ -1088,9 +1089,7 @@ class AFFTService(
             val outDir = File(contentsDir, name)
             val fsConfigFile = getFilesystemConfigFile(name)
             val metadataMarker = getFilesystemMetadataMarker(name)
-            if (outDir.exists() && !outDir.deleteRecursively()) {
-                return failResult("Extract Filesystem", "Tidak dapat membersihkan hasil ekstraksi sebelumnya")
-            }
+            deleteTreeNoFollow(outDir)
             if (fsConfigFile.exists() && !fsConfigFile.delete()) {
                 return failResult("Extract Filesystem", "Tidak dapat menghapus metadata ekstraksi lama")
             }
@@ -2110,6 +2109,7 @@ class AFFTService(
         clearLogs()
         addLog("=== Clean Selected ===")
 
+        var failed = false
         for (dirName in selectedDirs) {
             val dir = File(tempDir, dirName)
             if (dir.exists()) {
@@ -2129,10 +2129,17 @@ class AFFTService(
                     }
                 if (!canonDir.startsWith(canonTempSep)) {
                     addLog("[ERROR] Safety abort: $dirName/ is outside temp dir!")
+                    failed = true
                     continue
                 }
-                dir.deleteRecursively()
-                addLog("Cleaned: $dirName/")
+                try {
+                    deleteTreeNoFollow(dir)
+                    addLog("Cleaned: $dirName/")
+                } catch (e: java.io.IOException) {
+                    addLog("[ERROR] Gagal membersihkan $dirName/: ${e.message}")
+                    failed = true
+                    continue
+                }
             } else {
                 addLog("[INFO] $dirName/ does not exist, skipping")
             }
@@ -2142,16 +2149,25 @@ class AFFTService(
                 val filesystemPath = filesystemWorkDir.canonicalFile
                 if (!filesystemPath.path.startsWith(filesRoot.path + File.separator)) {
                     addLog("[ERROR] Safety abort: filesystem work directory is outside internal storage")
-                } else if (filesystemWorkDir.exists() && !filesystemWorkDir.deleteRecursively()) {
-                    addLog("[ERROR] Tidak dapat membersihkan hasil filesystem internal")
+                    failed = true
                 } else {
-                    addLog("Cleaned: internal filesystem contents and metadata")
+                    try {
+                        deleteTreeNoFollow(filesystemWorkDir)
+                        addLog("Cleaned: internal filesystem contents and metadata")
+                    } catch (e: java.io.IOException) {
+                        addLog("[ERROR] Tidak dapat membersihkan hasil filesystem internal: ${e.message}")
+                        failed = true
+                    }
                 }
             }
         }
         ensureDirs()
 
-        addLog("[OK] Clean selesai untuk ${selectedDirs.size} folder")
+        if (failed) {
+            addLog("[ERROR] Clean tidak selesai untuk semua folder yang dipilih")
+        } else {
+            addLog("[OK] Clean selesai untuk ${selectedDirs.size} folder")
+        }
     }
 
     suspend fun listContentsDirs(): List<String> {
@@ -2316,7 +2332,7 @@ class AFFTService(
             if (!baseDir.exists()) baseDir.mkdirs()
             val destDir = File(baseDir, subdirName)
             // Hapus dulu jika sudah ada
-            if (destDir.exists()) destDir.deleteRecursively()
+            deleteTreeNoFollow(destDir)
 
             // Coba rename dulu (instan kalo satu filesystem)
             var moved = srcDir.renameTo(destDir)
@@ -2324,11 +2340,11 @@ class AFFTService(
             if (!moved) {
                 // rename gagal (beda partisi), fallback copy (lebih lambat tapi aman)
                 addLog("  [INFO] rename gagal (beda partisi?), fallback copy...")
-                srcDir.copyRecursively(destDir, overwrite = true)
+                check(srcDir.copyRecursively(destDir, overwrite = true)) { "Gagal menyalin seluruh isi sumber" }
                 if (destDir.exists()) {
                     // Hapus sumber, tapi jangan gagalkan export kalau hapus gagal
                     try {
-                        srcDir.deleteRecursively()
+                        deleteTreeNoFollow(srcDir)
                     } catch (e: Exception) {
                         addLog("  [WARN] Gagal menghapus sumber: ${e.message}")
                     }
@@ -2357,11 +2373,8 @@ class AFFTService(
             val baseDir = getExportDir()
             if (!baseDir.exists()) baseDir.mkdirs()
             val destDir = File(baseDir, subdirName)
-            if (destDir.exists() && !destDir.deleteRecursively()) {
-                addLog("  [ERROR] Gagal membersihkan tujuan ekspor $subdirName/")
-                return false
-            }
-            srcDir.copyRecursively(destDir, overwrite = true)
+            deleteTreeNoFollow(destDir)
+            check(srcDir.copyRecursively(destDir, overwrite = true)) { "Gagal menyalin seluruh isi sumber" }
             if (destDir.isDirectory) {
                 addLog("  Disalin: $subdirName/ (${destDir.walkTopDown().count() - 1} items)")
                 true

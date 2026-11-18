@@ -17,6 +17,7 @@
 package com.afft.app.service
 
 import com.afft.app.util.formatFileSize
+import com.afft.app.util.deleteTreeNoFollow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -88,7 +89,7 @@ class StorageManager(
 
                 onLiveActivity("Menghapus ${file.name}...")
                 if (file.isDirectory) {
-                    file.deleteRecursively()
+                    deleteTreeNoFollow(file)
                 } else {
                     file.delete()
                 }
@@ -262,8 +263,8 @@ class StorageManager(
                 if (!moved) {
                     onLog("[INFO] rename gagal, fallback copy+delete...")
                     if (src.isDirectory) {
-                        src.copyRecursively(dest, overwrite = true)
-                        src.deleteRecursively()
+                        check(src.copyRecursively(dest, overwrite = true)) { "Gagal menyalin seluruh isi sumber" }
+                        deleteTreeNoFollow(src)
                     } else {
                         src.inputStream().use { input ->
                             dest.outputStream().use { output ->
