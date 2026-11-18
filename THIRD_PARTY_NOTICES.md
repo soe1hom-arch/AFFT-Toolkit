@@ -135,7 +135,9 @@ tidak dapat dibuktikan berasal dari source bersih pada commit tersebut.
 `tools/build_payload_dumper.sh` mem-pin source ke revisi tersebut dan
 membangun ulang dari working tree bersih, dengan XZ 5.4.6 dan zstd 1.5.5
 sebagai pilihan untuk build baru. Arsip zstd baru dipasang pada salinan lokal
-modul Go `gozstd`, tanpa mengubah cache modul Go.
+modul Go `gozstd`, tanpa mengubah cache modul Go. Patch lokal
+`tools/payload-dumper-errors.patch` meneruskan error ekstraksi worker,
+mencegah penimpaan output, dan menambahkan penanda status untuk aplikasi.
 
 Notis lisensi untuk dependensi Go disertakan di
 `assets/legal/PAYLOAD-GO-DEPENDENCIES.txt`; lisensi XZ dan zstd ada di

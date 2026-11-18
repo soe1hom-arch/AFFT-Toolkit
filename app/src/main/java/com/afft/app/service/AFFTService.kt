@@ -42,6 +42,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
+import java.nio.file.Files
 import kotlin.coroutines.coroutineContext
 
 class AFFTService(
@@ -419,13 +420,8 @@ class AFFTService(
             val payloadDumper =
                 BinaryManager.getBinaryPath(context, "payload-dumper-go")
                     ?: return failResult("Extract Payload", "payload-dumper-go not found")
-            val payloadOutputDir = File(getTempDir(), "Payload")
-            if (payloadOutputDir.exists() && !payloadOutputDir.deleteRecursively()) {
-                return failResult("Extract Payload", "Tidak dapat membersihkan hasil ekstraksi payload sebelumnya")
-            }
-            if (!payloadOutputDir.mkdirs() && !payloadOutputDir.isDirectory) {
-                return failResult("Extract Payload", "Tidak dapat membuat direktori output payload")
-            }
+            val payloadOutputDir = newPayloadOutputDir()
+            addLog("[INFO] Output payload: ${payloadOutputDir.absolutePath}")
 
             updateProgress("Extracting payload, mohon tunggu...")
             addLog("Running payload-dumper-go...")
@@ -455,30 +451,30 @@ class AFFTService(
                             "-n",
                             "-5",
                             payloadDumper,
-                            inputFile.absolutePath,
                             "-o",
                             payloadOutputDir.absolutePath,
                             "-c",
                             concurrency.toString(),
+                            inputFile.absolutePath,
                         )
                     } else {
                         listOf(
                             payloadDumper,
-                            inputFile.absolutePath,
                             "-o",
                             payloadOutputDir.absolutePath,
                             "-c",
                             concurrency.toString(),
+                            inputFile.absolutePath,
                         )
                     }
                 } catch (e: Exception) {
                     listOf(
                         payloadDumper,
-                        inputFile.absolutePath,
                         "-o",
                         payloadOutputDir.absolutePath,
                         "-c",
                         concurrency.toString(),
+                        inputFile.absolutePath,
                     )
                 }
             // Set initial progress state
@@ -532,6 +528,10 @@ class AFFTService(
                 updateProgress("Ekstrak payload gagal: timeout")
                 return failResult("Extract Payload", "Timeout: proses tidak selesai dalam 30 menit")
             } else if (result.exitCode == 0) {
+                if (!result.errorOutput.contains("AFFT_PAYLOAD_EXTRACTION_COMPLETE")) {
+                    addLog("[FAIL] Binary payload tidak mengonfirmasi status ekstraksi; hasil mungkin tidak lengkap")
+                    return failResult("Extract Payload", "Binary payload tidak kompatibel; perbarui aplikasi")
+                }
                 val imgFiles = payloadImageFiles(payloadOutputDir)
                 if (imgFiles.isEmpty()) {
                     addLog("[FAIL] payload-dumper-go selesai tanpa menghasilkan file .img")
@@ -543,13 +543,13 @@ class AFFTService(
                 _progressPercent.value = 100
                 val imgCount = imgFiles.size
                 _currentPartition.value = "Done ($imgCount img files)"
-                updateProgress("Ekstrak payload selesai! ($imgCount img)")
+                updateProgress("Ekstrak payload selesai! ($imgCount img): ${payloadOutputDir.absolutePath}")
 
                 OperationResult(
                     true,
                     "Extract Payload",
-                    "Payload extracted successfully ($imgCount img)",
-                    File(getTempDir(), "Payload").absolutePath,
+                    "Payload extracted successfully ($imgCount img): ${payloadOutputDir.absolutePath}",
+                    payloadOutputDir.absolutePath,
                 )
             } else {
                 addLog("[FAIL] payload-dumper-go exited with code ${result.exitCode}")
@@ -603,14 +603,9 @@ class AFFTService(
     private suspend fun runPayloadDumperFallback(inputFile: File): OperationResult? {
         return try {
             val binDir = BinaryManager.getBinDirectory(context)
-            val localBinary = File(binDir, "payload-dumper-go")
-            val payloadOutputDir = File(getTempDir(), "Payload")
-            if (payloadOutputDir.exists() && !payloadOutputDir.deleteRecursively()) {
-                return failResult("Extract Payload", "Tidak dapat membersihkan hasil payload parsial sebelum fallback")
-            }
-            if (!payloadOutputDir.mkdirs() && !payloadOutputDir.isDirectory) {
-                return failResult("Extract Payload", "Tidak dapat membuat direktori output payload fallback")
-            }
+            val localBinary = File(binDir, "payload-dumper-go-afft-v1")
+            val payloadOutputDir = newPayloadOutputDir()
+            addLog("[INFO] Output payload fallback: ${payloadOutputDir.absolutePath}")
 
             // Deploy payload-dumper-go dari assets jika perlu
             if (!localBinary.exists() || !localBinary.canExecute()) {
@@ -666,11 +661,11 @@ class AFFTService(
                     binaryPath = localBinary.absolutePath,
                     args =
                         listOf(
-                            inputFile.absolutePath,
                             "-o",
                             payloadOutputDir.absolutePath,
                             "-c",
                             concurrency.toString(),
+                            inputFile.absolutePath,
                         ),
                     workingDir = getTempDir(),
                     envVars = envVars,
@@ -682,17 +677,21 @@ class AFFTService(
                 addLog("[TIMEOUT] Fallback: proses tidak selesai dalam 30 menit, dibatalkan")
                 return failResult("Extract Payload", "Timeout: fallback juga tidak selesai")
             } else if (fallbackResult.exitCode == 0) {
+                if (!fallbackResult.errorOutput.contains("AFFT_PAYLOAD_EXTRACTION_COMPLETE")) {
+                    addLog("[FAIL] Binary fallback tidak mengonfirmasi status ekstraksi")
+                    return failResult("Extract Payload", "Binary payload fallback tidak kompatibel; perbarui aplikasi")
+                }
                 val imgCount = payloadImageFiles(payloadOutputDir).size
                 if (imgCount == 0) {
                     addLog("[FAIL] Fallback selesai tanpa menghasilkan file .img")
                     return failResult("Extract Payload", "Fallback tidak menghasilkan file partisi .img")
                 }
                 addLog("[OK] Payload extracted (fallback, $imgCount img files)")
-                updateProgress("Ekstrak payload selesai! ($imgCount img)")
+                updateProgress("Ekstrak payload selesai! ($imgCount img): ${payloadOutputDir.absolutePath}")
                 return OperationResult(
                     true,
                     "Extract Payload",
-                    "Payload extracted (fallback, $imgCount img)",
+                    "Payload extracted (fallback, $imgCount img): ${payloadOutputDir.absolutePath}",
                     payloadOutputDir.absolutePath,
                 )
             }
@@ -700,6 +699,8 @@ class AFFTService(
             addLog("[FAIL] Fallback juga gagal (exit ${fallbackResult.exitCode})")
             fallbackResult.errorOutput.forEach { addLog("[ERROR] $it") }
             null
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             addLog("[WARN] Fallback error: ${e.message}")
             null
@@ -708,6 +709,9 @@ class AFFTService(
 
     private fun payloadImageFiles(outputDir: File): List<File> =
         outputDir.walkTopDown().filter { it.isFile && it.extension.equals("img", ignoreCase = true) }.toList()
+
+    private fun newPayloadOutputDir(): File =
+        Files.createTempDirectory(File(getTempDir(), "Payload").toPath(), "run-").toFile()
 
     suspend fun unpackSuper(inputUri: Uri): OperationResult {
         ensureDirs()

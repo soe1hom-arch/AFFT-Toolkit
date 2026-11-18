@@ -77,6 +77,8 @@ if [ -n "$(git -C "$PAYLOAD_DIR" status --porcelain)" ]; then
     echo "ERROR: payload-dumper-go source tree is modified." >&2
     exit 1
 fi
+git -C "$PAYLOAD_DIR" apply --check "$SRC_DIR/tools/payload-dumper-errors.patch"
+git -C "$PAYLOAD_DIR" apply "$SRC_DIR/tools/payload-dumper-errors.patch"
 
 echo "=== Prepare pinned gozstd native archive ==="
 GOZSTD_DIR="$GOMODCACHE/github.com/valyala/gozstd@$GOZSTD_VER"
@@ -96,6 +98,14 @@ cp "$PAYLOAD_DIR/go.mod" "$MODFILE"
 cp "$PAYLOAD_DIR/go.sum" "$WORK_DIR/payload-build.sum"
 (cd "$PAYLOAD_DIR" && go mod edit -modfile "$MODFILE" \
     -replace "github.com/valyala/gozstd=$GOZSTD_BUILD_DIR")
+
+echo "=== Test patched payload-dumper-go on host ==="
+(
+    cd "$PAYLOAD_DIR"
+    CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+        go build -mod=readonly -modfile "$MODFILE" -o "$WORK_DIR/payload-dumper-host" .
+    bash "$SRC_DIR/tools/test_payload_dumper.sh" "$WORK_DIR/payload-dumper-host"
+)
 
 echo "=== Compile for Android ARM64 ==="
 cd "$PAYLOAD_DIR"

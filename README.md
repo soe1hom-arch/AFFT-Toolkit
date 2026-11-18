@@ -65,6 +65,10 @@ Analyze and unpack supported `payload.bin` firmware packages.
 - Extraction workflow
 - Firmware metadata
 
+Each extraction uses a new directory under `temp/Payload`; previous results
+are not removed. The output path is shown in the operation history and logs.
+Incremental/delta payloads are not supported by the bundled dumper.
+
 </td>
 <td width="50%" valign="top">
 

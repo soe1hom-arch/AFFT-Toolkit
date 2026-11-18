@@ -83,14 +83,19 @@ class AFFTServiceTest {
         check(binary.setExecutable(true))
     }
 
-    private fun fakePayloadDumper(writeImage: Boolean) {
-        val binary = File(tmp.root, "libs/libpayload-dumper-go.so")
+    private fun fakePayloadDumper(
+        writeImage: Boolean,
+        marker: Boolean = true,
+        binary: File = File(tmp.root, "libs/libpayload-dumper-go.so"),
+    ) {
         binary.parentFile!!.mkdirs()
         binary.writeText(
             """
             #!/bin/sh
-            mkdir -p "${'$'}3"
-            ${if (writeImage) "printf 'partition' > \"${'$'}3/system.img\"" else ":"}
+            [ "${'$'}#" = 5 ] && [ "${'$'}1" = "-o" ] && [ "${'$'}3" = "-c" ] && [ "${'$'}4" = "1" ] && [ -f "${'$'}5" ] || exit 2
+            mkdir -p "${'$'}2"
+            ${if (writeImage) "printf 'partition' > \"${'$'}2/system.img\"" else ":"}
+            ${if (marker) "echo AFFT_PAYLOAD_EXTRACTION_COMPLETE >&2" else ":"}
             exit 0
             """.trimIndent(),
         )
@@ -144,7 +149,7 @@ class AFFTServiceTest {
 
         assertFalse(result.ok)
         assertTrue(result.message.contains("file partisi .img"))
-        assertFalse(File(service.getTempDir(), "Payload/stale.img").exists())
+        assertEquals("stale", File(service.getTempDir(), "Payload/stale.img").readText())
     }
 
     @Test
@@ -157,6 +162,63 @@ class AFFTServiceTest {
         assertTrue(result.ok)
         assertTrue(File(result.outputPath, "system.img").isFile)
         assertTrue(result.message.contains("1 img"))
+    }
+
+    @Test
+    fun extractPayload_repeatedRunsPreservePreviousImages() = runBlocking {
+        fakePayloadDumper(writeImage = true)
+        val input = File(tmp.root, "payload.bin").apply { writeText("payload") }
+        val service = newService()
+        val first = service.extractPayload(input)
+        File(first.outputPath, "system.img").writeText("previous")
+
+        val second = service.extractPayload(input)
+
+        assertTrue(first.ok)
+        assertTrue(second.ok)
+        assertFalse(first.outputPath == second.outputPath)
+        assertEquals("previous", File(first.outputPath, "system.img").readText())
+        assertEquals("partition", File(second.outputPath, "system.img").readText())
+    }
+
+    @Test
+    fun extractPayload_oldDumperCannotReportSuccessWithPartialImage() = runBlocking {
+        fakePayloadDumper(writeImage = true, marker = false)
+        val input = File(tmp.root, "payload.bin").apply { writeText("payload") }
+
+        val result = newService().extractPayload(input)
+
+        assertFalse(result.ok)
+        assertTrue(result.message.contains("tidak kompatibel"))
+    }
+
+    @Test
+    fun extractPayload_fallbackUsesFreshDirectoryAndCorrectArguments() = runBlocking {
+        val primary = File(tmp.root, "libs/libpayload-dumper-go.so")
+        primary.parentFile!!.mkdirs()
+        primary.writeText(
+            """
+            #!/bin/sh
+            printf 'partial' > "${'$'}2/system.img"
+            echo 'CANNOT LINK' >&2
+            exit 1
+            """.trimIndent(),
+        )
+        check(primary.setExecutable(true))
+        val binDir = File(tmp.root, "files/afft_bin").apply { mkdirs() }
+        File(binDir, "liblzma.so.5").writeText("unused")
+        File(binDir, "payload-dumper-go").writeText("old binary")
+        fakePayloadDumper(writeImage = true, binary = File(binDir, "payload-dumper-go-afft-v1"))
+        val input = File(tmp.root, "payload.bin").apply { writeText("payload") }
+        val service = newService()
+
+        val result = service.extractPayload(input)
+
+        assertTrue(result.ok)
+        assertEquals("partition", File(result.outputPath, "system.img").readText())
+        val outputs = File(service.getTempDir(), "Payload").listFiles()!!.filter { it.isDirectory }
+        assertEquals(2, outputs.size)
+        assertTrue(outputs.any { File(it, "system.img").readText() == "partial" })
     }
 
     @Test
