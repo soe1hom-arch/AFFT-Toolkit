@@ -83,6 +83,20 @@ class AFFTServiceTest {
         check(binary.setExecutable(true))
     }
 
+    private fun fakePayloadDumper(writeImage: Boolean) {
+        val binary = File(tmp.root, "libs/libpayload-dumper-go.so")
+        binary.parentFile!!.mkdirs()
+        binary.writeText(
+            """
+            #!/bin/sh
+            mkdir -p "${'$'}3"
+            ${if (writeImage) "printf 'partition' > \"${'$'}3/system.img\"" else ":"}
+            exit 0
+            """.trimIndent(),
+        )
+        check(binary.setExecutable(true))
+    }
+
     private fun ext4Image(): File =
         File(tmp.root, "system.img").apply {
             writeBytes(ByteArray(0x43a).also {
@@ -114,6 +128,35 @@ class AFFTServiceTest {
         assertTrue(result.ok)
         assertTrue(result.outputPath.startsWith(File(tmp.root, "files/afft_work/filesystem/contents").absolutePath))
         assertTrue(service.getFilesystemConfigFile("system").isFile)
+    }
+
+    @Test
+    fun extractPayload_zeroExitWithoutImagesIsFailure() = runBlocking {
+        fakePayloadDumper(writeImage = false)
+        val input = File(tmp.root, "payload.bin").apply { writeText("payload") }
+        val service = newService()
+        File(service.getTempDir(), "Payload/stale.img").apply {
+            parentFile!!.mkdirs()
+            writeText("stale")
+        }
+
+        val result = service.extractPayload(input)
+
+        assertFalse(result.ok)
+        assertTrue(result.message.contains("file partisi .img"))
+        assertFalse(File(service.getTempDir(), "Payload/stale.img").exists())
+    }
+
+    @Test
+    fun extractPayload_zeroExitWithImageIsSuccess() = runBlocking {
+        fakePayloadDumper(writeImage = true)
+        val input = File(tmp.root, "payload.bin").apply { writeText("payload") }
+
+        val result = newService().extractPayload(input)
+
+        assertTrue(result.ok)
+        assertTrue(File(result.outputPath, "system.img").isFile)
+        assertTrue(result.message.contains("1 img"))
     }
 
     @Test
