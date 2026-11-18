@@ -87,6 +87,7 @@ class AFFTServiceTest {
         writeImage: Boolean,
         marker: Boolean = true,
         binary: File = File(tmp.root, "libs/libpayload-dumper-go.so"),
+        outputLine: String? = null,
     ) {
         binary.parentFile!!.mkdirs()
         binary.writeText(
@@ -95,6 +96,7 @@ class AFFTServiceTest {
             [ "${'$'}#" = 5 ] && [ "${'$'}1" = "-o" ] && [ "${'$'}3" = "-c" ] && [ "${'$'}4" = "1" ] && [ -f "${'$'}5" ] || exit 2
             mkdir -p "${'$'}2"
             ${if (writeImage) "printf 'partition' > \"${'$'}2/system.img\"" else ":"}
+            ${outputLine?.let { "printf '%s\\n' '${it.replace("'", "'\\''")}'" } ?: ":"}
             ${if (marker) "echo AFFT_PAYLOAD_EXTRACTION_COMPLETE >&2" else ":"}
             exit 0
             """.trimIndent(),
@@ -190,6 +192,29 @@ class AFFTServiceTest {
         assertTrue(result.ok)
         assertTrue(File(result.outputPath, "system.img").isFile)
         assertTrue(result.message.contains("1 img"))
+    }
+
+    @Test
+    fun extractPayload_debugModeCapturesNativeOutputAndRecordingSurvivesOperationClear() = runBlocking {
+        fakePayloadDumper(writeImage = true, outputLine = "partition metadata decoded")
+        val input = File(tmp.root, "payload.bin").apply { writeText("payload") }
+        val service = newService()
+        service.setLogToFileEnabled(true)
+        service.toggleDebug()
+        val recording = service.currentLogFile!!
+
+        val result = service.extractPayload(input)
+
+        assertTrue(result.ok)
+        assertEquals(recording, service.currentLogFile)
+        assertTrue(service.logs.value.any { it.contains("[DEBUG] partition metadata decoded") })
+        val recordedLines = recording.readLines()
+        assertTrue(recordedLines.any { it.contains("[DEBUG] partition metadata decoded") })
+        assertTrue(
+            recordedLines.any {
+                Regex("""\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \[DEBUG\]""").containsMatchIn(it)
+            },
+        )
     }
 
     @Test

@@ -323,7 +323,6 @@ class AFFTService(
         File(getTempDir(), "img_src").mkdirs()
         File(getTempDir(), "filesystem_work").mkdirs()
         File(getTempDir(), "logs").mkdirs()
-        logManager.initLogFile()
     }
 
     /**
@@ -526,7 +525,9 @@ class AFFTService(
                     envVars = mapOf("LD_LIBRARY_PATH" to ldLibraryPath),
                     onProgress = { line ->
                         parsePayloadProgress(line)
-                        // Don't add payload-dumper-go output to logs (progress bar only)
+                        if (logManager.debugMode) {
+                            addLog(if (line.startsWith("[ERROR]")) line else "[DEBUG] $line")
+                        }
                     },
                     timeoutMillis = 1800000L,
                 )

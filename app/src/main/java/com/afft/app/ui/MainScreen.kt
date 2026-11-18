@@ -304,6 +304,13 @@ fun MainScreen(
                         )
                     }
                 }
+                Text(
+                    "Log operasi AFFT, bukan Android logcat. Debug menampilkan detail tambahan yang tersedia; Record menyimpan log AFFT.",
+                    fontSize = 10.sp,
+                    fontFamily = LocalFontFamily.current,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                )
 
                 TerminalView(
                     logs = logs,

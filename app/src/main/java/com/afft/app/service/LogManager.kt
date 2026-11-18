@@ -40,10 +40,13 @@ class LogManager(
     private val maxInMemoryLogs = 1500
     private val keyLogToFile = "log_to_file"
 
+    @Volatile
     var debugMode: Boolean = false
         private set
+    @Volatile
     var logToFileEnabled: Boolean = false
         private set
+    @Volatile
     var currentLogFile: File? = null
         private set
 
@@ -57,7 +60,8 @@ class LogManager(
         if (logToFileEnabled) {
             try {
                 initLogFile()
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                addLog("[ERROR] Gagal memulai rekaman log: ${e.message}")
             }
         }
     }
@@ -72,7 +76,8 @@ class LogManager(
         if (enabled && currentLogFile == null) {
             try {
                 initLogFile()
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                addLog("[ERROR] Gagal memulai rekaman log: ${e.message}")
             }
         } else if (!enabled) {
             currentLogFile = null
@@ -159,7 +164,12 @@ class LogManager(
         if (logToFileEnabled && logFile != null) {
             try {
                 synchronized(logLock) {
-                    logFile.appendText("$text\n")
+                    val timestamp =
+                        SimpleDateFormat(
+                            "yyyy-MM-dd HH:mm:ss.SSS",
+                            Locale.US,
+                        ).format(Date())
+                    logFile.appendText("$timestamp $text\n")
                 }
             } catch (e: Exception) {
                 Log.w("AFFTService", "Gagal tulis log file: ${e.message}")
@@ -174,13 +184,12 @@ class LogManager(
         }
     }
 
-    /** Kosongkan buffer log & buka file log baru. */
+    /** Kosongkan buffer konsol tanpa menghentikan atau mereset rekaman aktif. */
     fun clear() {
         synchronized(logLock) {
             logBuffer.clear()
         }
         onLogsChanged(emptyList())
-        initLogFile()
     }
 
     /**
@@ -209,20 +218,24 @@ class LogManager(
     }
 
     internal fun initLogFile() {
-        try {
-            val logsDir = getLogsDir()
-            logsDir.mkdirs()
-            val timestamp =
-                SimpleDateFormat(
-                    "yyyy-MM-dd_HH-mm-ss",
-                    Locale.US,
-                ).format(Date())
-            currentLogFile = File(logsDir, "log_$timestamp.txt")
-            currentLogFile?.writeText("=== AFFT Log Session: $timestamp ===\n")
-            Log.d("AFFTService", "[LOG] Log file: ${currentLogFile?.absolutePath}")
-        } catch (e: Exception) {
-            Log.e("AFFTService", "Gagal init log file: ${e.message}")
+        val logsDir = getLogsDir()
+        if (!logsDir.exists() && !logsDir.mkdirs()) {
+            throw IllegalStateException("Folder log tidak dapat dibuat: ${logsDir.absolutePath}")
         }
+        val timestamp =
+            SimpleDateFormat(
+                "yyyy-MM-dd_HH-mm-ss-SSS",
+                Locale.US,
+            ).format(Date())
+        var candidate = File(logsDir, "log_$timestamp.txt")
+        var suffix = 1
+        while (!candidate.createNewFile()) {
+            candidate = File(logsDir, "log_${timestamp}_$suffix.txt")
+            suffix++
+        }
+        candidate.writeText("=== AFFT Log Session: $timestamp ===\n")
+        currentLogFile = candidate
+        Log.d("AFFTService", "[LOG] Log file: ${candidate.absolutePath}")
     }
 
     private fun isProgressBarLine(text: String): Boolean {
