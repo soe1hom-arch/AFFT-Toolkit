@@ -133,6 +133,9 @@ class AFFTServiceTest {
         assertTrue(result.ok)
         assertTrue(result.outputPath.startsWith(File(tmp.root, "files/afft_work/filesystem/contents").absolutePath))
         assertTrue(service.getFilesystemConfigFile("system").isFile)
+        assertTrue(service.logs.value.any { it == "[INFO] debugfs 1.47.0 (5-Feb-2023)" })
+        assertFalse(service.logs.value.any { it == "[ERROR] debugfs 1.47.0 (5-Feb-2023)" })
+        assertTrue(service.logs.value.any { it.contains(result.outputPath) })
     }
 
     @Test
@@ -458,6 +461,22 @@ class AFFTServiceTest {
 
         assertTrue(service.deleteFileWithSafety(inside))
         assertFalse(inside.exists())
+    }
+
+    @Test
+    fun deleteFileWithSafety_protectsRootAndReportsFullPaths() = runBlocking {
+        val work = File(tmp.root, "work").apply { mkdirs() }
+        val downloads = File(tmp.root, "downloads/AFFT").apply { mkdirs() }
+        val protectedFile = File(downloads, "keep").apply { writeText("keep") }
+        val deleted = File(work, "contents").apply { mkdirs() }
+        val messages = mutableListOf<String>()
+        val storage = StorageManager({ work }, { downloads }, messages::add, {})
+
+        assertFalse(storage.deleteFileWithSafety(downloads))
+        assertTrue(protectedFile.exists())
+        assertTrue(messages.any { it.contains(downloads.canonicalPath) && it.contains("dilindungi") })
+        assertTrue(storage.deleteFileWithSafety(deleted))
+        assertTrue(messages.any { it.contains(deleted.canonicalPath) })
     }
 
     @Test

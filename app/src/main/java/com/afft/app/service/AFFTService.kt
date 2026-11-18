@@ -1261,7 +1261,7 @@ class AFFTService(
                     command = listOf(debugfsBin, "-R", "rdump / ${outDir.absolutePath}", workingFile.absolutePath),
                     workingDir = getTempDir(),
                     envVars = mapOf("AFFT_FS_CONFIG_FILE" to fsConfigFile.absolutePath),
-                    onProgress = { addLog(it) },
+                    onProgress = { logDebugfsOutput(it) },
                 )
 
             val debugfsErrors = debugfsDiagnostics(debugfsResult.errorOutput)
@@ -1283,7 +1283,7 @@ class AFFTService(
                 fsConfigFile.isFile && fsConfigFile.length() > 0L
             ) {
                 metadataMarker.writeText("complete")
-                addLog("[OK] Filesystem terekstrak ke $name/ ($debugfsFileCount item)")
+                addLog("[OK] Filesystem terekstrak ke ${outDir.absolutePath} ($debugfsFileCount item)")
                 updateProgress("Ekstrak selesai! $debugfsFileCount item")
                 OperationResult(
                     true,
@@ -1348,7 +1348,7 @@ class AFFTService(
                                 ),
                             workingDir = getTempDir(),
                             envVars = mapOf("AFFT_FS_CONFIG_FILE" to fsConfigFile.absolutePath),
-                            onProgress = { addLog(it) },
+                            onProgress = { logDebugfsOutput(it) },
                         )
                     val rawFileCount = if (outDir.exists()) outDir.walkTopDown().count() - 1 else 0
                     if (rawResult.exitCode == 0 &&
@@ -1381,7 +1381,7 @@ class AFFTService(
                         ShellExecutor.executeWithProgress(
                             command = listOf(debugfsBin, "-R", "ls -l /", workingFile.absolutePath),
                             workingDir = getTempDir(),
-                            onProgress = { addLog(it) },
+                            onProgress = { logDebugfsOutput(it) },
                         )
                     if (lsResult.exitCode == 0) {
                         addLog("[INFO] debugfs ls berhasil! Mencoba rdump dengan path absolut...")
@@ -1396,7 +1396,7 @@ class AFFTService(
                                     ),
                                 workingDir = getTempDir(),
                                 envVars = mapOf("AFFT_FS_CONFIG_FILE" to fsConfigFile.absolutePath),
-                                onProgress = { addLog(it) },
+                                onProgress = { logDebugfsOutput(it) },
                             )
                         val rdumpFileCount = if (outDir.exists()) outDir.walkTopDown().count() - 1 else 0
                         if (rdumpResult.exitCode == 0 &&
@@ -1447,7 +1447,19 @@ class AFFTService(
 
     private fun debugfsDiagnostics(lines: List<String>): List<String> =
         lines.map { it.trim() }
-            .filter { it.isNotEmpty() && !it.matches(Regex("""debugfs \d+(?:\.\d+)+(?:[-\w.]*) \([^)]*\)""")) }
+            .filter { it.isNotEmpty() && !isDebugfsBanner(it) }
+
+    private fun isDebugfsBanner(line: String): Boolean =
+        line.trim().matches(Regex("""debugfs \d+(?:\.\d+)+(?:[-\w.]*) \([^)]*\)"""))
+
+    private fun logDebugfsOutput(line: String) {
+        val stderrLine = line.removePrefix("[ERROR] ")
+        if (isDebugfsBanner(stderrLine)) {
+            addLog("[INFO] $stderrLine")
+        } else {
+            addLog(line)
+        }
+    }
 
     /**
      * Read saved super device-size from unpack phase.

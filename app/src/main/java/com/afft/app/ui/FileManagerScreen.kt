@@ -319,6 +319,16 @@ fun FileManagerScreen(
                         )
                     },
                 )
+                AssistChip(
+                    onClick = {
+                        scope.launch {
+                            pathHistory = emptyList()
+                            refreshFiles(afftService.getFilesystemContentsDir())
+                        }
+                    },
+                    label = { Text("Filesystem", fontSize = 12.sp) },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_folder), null, tint = LocalIconTint.current) },
+                )
                 if (downloadDir.exists()) {
                     AssistChip(
                         onClick = {

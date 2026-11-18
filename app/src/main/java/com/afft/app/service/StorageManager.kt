@@ -76,7 +76,13 @@ class StorageManager(
                     canonFile.startsWith(canonWork + File.separator) ||
                         canonFile.startsWith(canonDl + File.separator)
                 if (!allowed) {
-                    onLog("[ERROR] Safety abort: ${file.name} di luar work dir & Downloads/AFFT!")
+                    val reason =
+                        if (canonFile == canonWork || canonFile == canonDl) {
+                            "direktori utama dilindungi"
+                        } else {
+                            "di luar work dir & Downloads/AFFT"
+                        }
+                    onLog("[ERROR] Safety abort: $canonFile ($reason)")
                     return@withContext false
                 }
 
@@ -91,7 +97,7 @@ class StorageManager(
                     onLog("[ERROR] Gagal menghapus: ${file.name} (masih ada)")
                     false
                 } else {
-                    onLog("[OK] Dihapus: ${file.name}")
+                    onLog("[OK] Dihapus: $canonFile")
                     true
                 }
             } catch (e: Exception) {
