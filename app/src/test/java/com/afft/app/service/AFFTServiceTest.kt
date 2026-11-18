@@ -74,6 +74,7 @@ class AFFTServiceTest {
             set -- ${'$'}2
             mkdir -p "${'$'}3"
             printf 'data' > "${'$'}3/file"
+            printf '/ 0 0 0755\nfile 1000 1000 0644\n' > "${'$'}AFFT_FS_CONFIG_FILE"
             printf '%s\n' 'debugfs 1.47.0 (5-Feb-2023)' >&2
             $diagnostic
             exit 0
@@ -106,10 +107,52 @@ class AFFTServiceTest {
     @Test
     fun extractFilesystem_debugfsBannerAloneDoesNotPreventSuccess() = runBlocking {
         fakeDebugfs("")
+        val service = newService()
 
-        val result = newService().extractFilesystem(ext4Image())
+        val result = service.extractFilesystem(ext4Image())
 
         assertTrue(result.ok)
+        assertTrue(result.outputPath.startsWith(File(tmp.root, "files/afft_work/filesystem/contents").absolutePath))
+        assertTrue(service.getFilesystemConfigFile("system").isFile)
+    }
+
+    @Test
+    fun repackFilesystem_passesSavedFsConfigToErofsMaker() = runBlocking {
+        fakeDebugfs("")
+        val binary = File(tmp.root, "libs/libmkfs.erofs.so")
+        binary.parentFile!!.mkdirs()
+        binary.writeText(
+            """
+            #!/bin/sh
+            [ "${'$'}1" = "-z" ] && [ "${'$'}2" = "lz4hc,9" ] || exit 2
+            case "${'$'}5" in --fs-config-file=*/system.txt) ;; *) exit 3 ;; esac
+            printf 'image' > "${'$'}6"
+            """.trimIndent(),
+        )
+        check(binary.setExecutable(true))
+        val service = newService()
+        val extractResult = service.extractFilesystem(ext4Image())
+        check(extractResult.ok)
+
+        val configFile = service.getFilesystemConfigFile("system")
+        val result = service.repackFilesystem("system")
+
+        assertTrue(result.ok)
+        assertTrue(configFile.isFile)
+    }
+
+    @Test
+    fun repackFilesystem_missingRequiredFsConfigIsFailure() = runBlocking {
+        fakeDebugfs("")
+        val service = newService()
+        val extractResult = service.extractFilesystem(ext4Image())
+        check(extractResult.ok)
+        check(service.getFilesystemConfigFile("system").delete())
+
+        val result = service.repackFilesystem("system")
+
+        assertFalse(result.ok)
+        assertTrue(result.message.contains("Metadata UID/GID/mode"))
     }
 
     @Test

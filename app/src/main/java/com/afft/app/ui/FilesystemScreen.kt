@@ -94,7 +94,7 @@ fun FilesystemScreen(
     var expanded by rememberSaveable { mutableStateOf(false) }
     var repackSourcePath by rememberSaveable { mutableStateOf<String?>(null) }
     var showRepackSourceBrowser by rememberSaveable { mutableStateOf(false) }
-    var repackBrowseDir by remember { mutableStateOf(afftService.getTempDir()) }
+    var repackBrowseDir by remember { mutableStateOf(afftService.getFilesystemContentsDir()) }
 
     // Dialogs state
     var showSourceSelector by rememberSaveable { mutableStateOf(false) }
@@ -209,7 +209,7 @@ fun FilesystemScreen(
             },
             quickLocations =
                 listOf(
-                    QuickLocation("Folder Kerja", R.drawable.ic_folder, afftService.getTempDir()),
+                    QuickLocation("Filesystem hasil ekstraksi", R.drawable.ic_folder, afftService.getFilesystemContentsDir()),
                 ),
         )
     }
@@ -312,7 +312,7 @@ fun FilesystemScreen(
         StepSectionTitle(
             step = "02",
             title = "Extract Filesystem",
-            description = "Ekstrak konten image ke temp/contents/",
+            description = "Ekstrak konten image ke penyimpanan internal aplikasi",
         )
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -374,9 +374,9 @@ fun FilesystemScreen(
 
         RepackSourceCard(
             selectedPath = repackSourcePath,
-            defaultHint = "temp/contents/ (default)",
+            defaultHint = "Hasil ekstraksi internal (default)",
             onBrowse = {
-                repackBrowseDir = repackSourcePath?.let { File(it) } ?: afftService.getTempDir()
+                repackBrowseDir = repackSourcePath?.let { File(it) } ?: afftService.getFilesystemContentsDir()
                 showRepackSourceBrowser = true
             },
             onPickSystemFolder = { folderPicker.launch(null) },
@@ -391,7 +391,10 @@ fun FilesystemScreen(
         // Preview folder sumber (kustom atau dari hasil extract)
         val previewDir: File? =
             repackSourcePath?.let { File(it) }
-                ?: selectedDir?.let { File(File(afftService.getTempDir(), "contents"), it) }
+                ?: selectedDir?.let { name ->
+                    val internal = File(afftService.getFilesystemContentsDir(), name)
+                    if (internal.exists()) internal else File(File(afftService.getTempDir(), "contents"), name)
+                }
         val previewFiles =
             remember(previewDir) {
                 if (previewDir != null && previewDir.exists()) {

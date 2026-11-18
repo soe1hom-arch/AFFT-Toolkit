@@ -1,0 +1,133 @@
+diff --git a/debugfs/dump.c b/debugfs/dump.c
+--- a/debugfs/dump.c
++++ b/debugfs/dump.c
+@@ -36,6 +36,9 @@
+ #define O_LARGEFILE 0
+ #endif
+ 
++static FILE *rdump_fs_config;
++static char *rdump_output_root;
++
+ /*
+  * The mode_xlate function translates a linux mode into a native-OS mode_t.
+  */
+@@ -80,16 +83,18 @@ static void fix_perms(const char *cmd, const struct ext2_inode *inode,
+ 	if (i == -1)
+ 		com_err(cmd, errno, "while setting permissions of %s", name);
+ 
+-#ifndef HAVE_FCHOWN
+-	i = chown(name, inode_uid(*inode), inode_gid(*inode));
+-#else
+-	if (fd != -1)
+-		i = fchown(fd, inode_uid(*inode), inode_gid(*inode));
+-	else
+-		i = chown(name, inode_uid(*inode), inode_gid(*inode));
+-#endif
+-	if (i == -1)
+-		com_err(cmd, errno, "while changing ownership of %s", name);
++	if (!rdump_fs_config) {
++#ifndef HAVE_FCHOWN
++		i = chown(name, inode_uid(*inode), inode_gid(*inode));
++#else
++		if (fd != -1)
++			i = fchown(fd, inode_uid(*inode), inode_gid(*inode));
++		else
++			i = chown(name, inode_uid(*inode), inode_gid(*inode));
++#endif
++		if (i == -1)
++			com_err(cmd, errno, "while changing ownership of %s", name);
++	}
+ 
+ 	ut.actime = inode->i_atime;
+ 	ut.modtime = inode->i_mtime;
+@@ -245,6 +250,31 @@ errout:
+ 	free(buf);
+ }
+ 
++static void rdump_record_fs_config(const struct ext2_inode *inode,
++				   const char *fullname)
++{
++	const char *path = fullname;
++	size_t root_len;
++
++	if (!rdump_fs_config || !rdump_output_root)
++		return;
++	root_len = strlen(rdump_output_root);
++	if (strncmp(path, rdump_output_root, root_len) == 0) {
++		path += root_len;
++		while (*path == '/')
++			path++;
++	}
++	if (strpbrk(path, " \t\r\n")) {
++		com_err("rdump", 0, "cannot encode whitespace in fs_config path %s",
++			path);
++		return;
++	}
++	if (fprintf(rdump_fs_config, "%s %u %u %04o\n",
++		    *path ? path : "/", inode_uid(*inode), inode_gid(*inode),
++		    inode->i_mode & 07777) < 0)
++		com_err("rdump", errno, "while writing fs_config for %s", path);
++}
++
+ static int rdump_dirent(struct ext2_dir_entry *, int, int, char *, void *);
+ 
+ static void rdump_inode(ext2_ino_t ino, struct ext2_inode *inode,
+@@ -251,6 +281,8 @@ static void rdump_inode(ext2_ino_t ino, struct ext2_inode *inode,
+ 		return;
+ 	}
+ 	sprintf(fullname, "%s/%s", dumproot, name);
++	if (strcmp(name, ".") && strcmp(name, ".."))
++		rdump_record_fs_config(inode, fullname);
+ 
+ 	if (LINUX_S_ISLNK(inode->i_mode))
+ 		rdump_symlink(ino, inode, fullname);
+@@ -326,6 +358,7 @@ void do_rdump(int argc, char **argv, int sci_idx EXT2FS_ATTR((unused)),
+ {
+ 	struct stat st;
+ 	char *dest_dir;
++	const char *fs_config_path;
+ 	int i;
+ 
+ 	if (common_args_process(argc, argv, 3, INT_MAX, "rdump",
+@@ -346,6 +379,25 @@ void do_rdump(int argc, char **argv, int sci_idx EXT2FS_ATTR((unused)),
+ 		return;
+ 	}
+ 
++	rdump_fs_config = NULL;
++	rdump_output_root = NULL;
++	fs_config_path = getenv("AFFT_FS_CONFIG_FILE");
++	if (fs_config_path && *fs_config_path) {
++		rdump_fs_config = fopen(fs_config_path, "w");
++		if (!rdump_fs_config) {
++			com_err("rdump", errno, "while opening fs_config %s",
++				fs_config_path);
++			return;
++		}
++		rdump_output_root = strdup(dest_dir);
++		if (!rdump_output_root) {
++			com_err("rdump", errno, "while allocating output path");
++			fclose(rdump_fs_config);
++			rdump_fs_config = NULL;
++			return;
++		}
++	}
++
+ 	for (i = 1; i < argc; i++) {
+ 		char *arg = argv[i], *basename;
+ 		struct ext2_inode inode;
+@@ -363,6 +415,15 @@ void do_rdump(int argc, char **argv, int sci_idx EXT2FS_ATTR((unused)),
+ 
+ 		rdump_inode(ino, &inode, basename, dest_dir);
+ 	}
++	if (rdump_fs_config) {
++		if (fflush(rdump_fs_config) != 0)
++			com_err("rdump", errno, "while flushing fs_config");
++		if (fclose(rdump_fs_config) != 0)
++			com_err("rdump", errno, "while closing fs_config");
++		rdump_fs_config = NULL;
++		free(rdump_output_root);
++		rdump_output_root = NULL;
++	}
+ }
+ 
+ void do_cat(int argc, char **argv, int sci_idx EXT2FS_ATTR((unused)),

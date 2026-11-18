@@ -31,6 +31,11 @@ Catatan:
   `tools/build_licensed_binaries.sh`. Build pada branch validasi telah
   berhasil, tetapi fungsi binary pada perangkat Android belum diuji. Binary
   lama di repositori belum terbukti berasal dari source tersebut.
+- Skrip build menerapkan `tools/debugfs-fs-config.patch` pada `rdump` untuk
+  menyimpan UID/GID/mode ke sidecar dan menghindari `chown` saat sidecar aktif.
+  Ekstraksi aplikasi memakai penyimpanan internal agar symlink dapat dibuat.
+  Sidecar tidak menyimpan SELinux labels atau capabilities; hasilnya belum
+  boleh dianggap siap-flash tanpa validasi tambahan pada perangkat.
 
 ## EROFS Tools
 

@@ -280,6 +280,15 @@ class AFFTService(
         return dir
     }
 
+    fun getFilesystemContentsDir(): File =
+        File(context.filesDir, "afft_work/filesystem/contents").apply { mkdirs() }
+
+    fun getFilesystemConfigFile(name: String): File =
+        File(File(context.filesDir, "afft_work/filesystem/fs_config").apply { mkdirs() }, "$name.txt")
+
+    private fun getFilesystemMetadataMarker(name: String): File =
+        File(File(context.filesDir, "afft_work/filesystem/fs_config").apply { mkdirs() }, "$name.required")
+
     fun getInputDir(): File {
         val dir = File(getWorkDir(), "input")
         if (!dir.exists()) dir.mkdirs()
@@ -296,6 +305,7 @@ class AFFTService(
         getInputDir()
         File(getTempDir(), "img").mkdirs()
         File(getTempDir(), "contents").mkdirs()
+        getFilesystemContentsDir()
         File(getTempDir(), "repacked").mkdirs()
         File(getTempDir(), "Payload").mkdirs()
         File(getTempDir(), "boot").mkdirs()
@@ -1015,6 +1025,10 @@ class AFFTService(
 
     suspend fun extractFilesystem(inputFile: File): OperationResult {
         ensureDirs()
+        val name = inputFile.nameWithoutExtension
+        if (name.isBlank() || name == "." || name == "..") {
+            return failResult("Extract Filesystem", "Nama filesystem tidak valid")
+        }
         ensureForegroundRunning()
         _isRunning.value = true
         _progressMessage.value = "Extracting filesystem..."
@@ -1023,12 +1037,24 @@ class AFFTService(
         addLog("[INFO] Menggunakan file: ${inputFile.absolutePath}")
         addLog("[INFO] File size: ${inputFile.length()} bytes")
 
-        val contentsDir = File(getTempDir(), "contents")
-        val name = inputFile.nameWithoutExtension
-        val outDir = File(contentsDir, name)
-        outDir.mkdirs()
-
         return try {
+            val contentsDir = getFilesystemContentsDir()
+            val outDir = File(contentsDir, name)
+            val fsConfigFile = getFilesystemConfigFile(name)
+            val metadataMarker = getFilesystemMetadataMarker(name)
+            if (outDir.exists() && !outDir.deleteRecursively()) {
+                return failResult("Extract Filesystem", "Tidak dapat membersihkan hasil ekstraksi sebelumnya")
+            }
+            if (fsConfigFile.exists() && !fsConfigFile.delete()) {
+                return failResult("Extract Filesystem", "Tidak dapat menghapus metadata ekstraksi lama")
+            }
+            if (metadataMarker.exists() && !metadataMarker.delete()) {
+                return failResult("Extract Filesystem", "Tidak dapat menghapus penanda metadata lama")
+            }
+            if (!outDir.mkdirs() && !outDir.isDirectory) {
+                return failResult("Extract Filesystem", "Tidak dapat membuat direktori ekstraksi internal")
+            }
+
             // Check if image is sparse Android format, convert to raw if needed
             updateProgress("Memeriksa format gambar...")
             var workingFile = inputFile
@@ -1181,6 +1207,7 @@ class AFFTService(
                 BinaryManager.getBinaryPath(context, "debugfs")
                     ?: return failResult("Extract Filesystem", "debugfs not found (binary tidak ada)")
 
+            metadataMarker.writeText("incomplete")
             updateProgress("Mengekstrak filesystem dengan debugfs...")
             addLog("Menjalankan: debugfs -R 'rdump /' ${workingFile.name} -> $name/")
 
@@ -1188,6 +1215,7 @@ class AFFTService(
                 ShellExecutor.executeWithProgress(
                     command = listOf(debugfsBin, "-R", "rdump / ${outDir.absolutePath}", workingFile.absolutePath),
                     workingDir = getTempDir(),
+                    envVars = mapOf("AFFT_FS_CONFIG_FILE" to fsConfigFile.absolutePath),
                     onProgress = { addLog(it) },
                 )
 
@@ -1206,7 +1234,10 @@ class AFFTService(
                 return failResult("Extract Filesystem", message)
             }
             val debugfsFileCount = if (outDir.exists()) outDir.walkTopDown().count() - 1 else 0
-            if (debugfsResult.exitCode == 0 && debugfsErrors.isEmpty() && debugfsFileCount > 0) {
+            if (debugfsResult.exitCode == 0 && debugfsErrors.isEmpty() && debugfsFileCount > 0 &&
+                fsConfigFile.isFile && fsConfigFile.length() > 0L
+            ) {
+                metadataMarker.writeText("complete")
                 addLog("[OK] Filesystem terekstrak ke $name/ ($debugfsFileCount item)")
                 updateProgress("Ekstrak selesai! $debugfsFileCount item")
                 OperationResult(
@@ -1241,6 +1272,11 @@ class AFFTService(
                             )
                         val badMagicCount = if (outDir.exists()) outDir.walkTopDown().count() - 1 else 0
                         if (erofsResult.exitCode == 0 && badMagicCount > 0) {
+                            if ((fsConfigFile.exists() && !fsConfigFile.delete()) ||
+                                (metadataMarker.exists() && !metadataMarker.delete())
+                            ) {
+                                return failResult("Extract Filesystem", "Tidak dapat menghapus metadata debugfs parsial")
+                            }
                             addLog("[OK] EROFS filesystem terekstrak! ($badMagicCount item)")
                             updateProgress("Ekstrak EROFS selesai! $badMagicCount item")
                             return OperationResult(
@@ -1266,16 +1302,23 @@ class AFFTService(
                                     workingFile.absolutePath,
                                 ),
                             workingDir = getTempDir(),
+                            envVars = mapOf("AFFT_FS_CONFIG_FILE" to fsConfigFile.absolutePath),
                             onProgress = { addLog(it) },
                         )
-                    if (rawResult.exitCode == 0 && debugfsDiagnostics(rawResult.errorOutput).isEmpty()) {
-                        val fileCount = if (outDir.exists()) outDir.walkTopDown().count() - 1 else 0
-                        addLog("[OK] Filesystem terekstrak dari file raw! ($fileCount item)")
-                        updateProgress("Ekstrak selesai! $fileCount item")
+                    val rawFileCount = if (outDir.exists()) outDir.walkTopDown().count() - 1 else 0
+                    if (rawResult.exitCode == 0 &&
+                        debugfsDiagnostics(rawResult.errorOutput).isEmpty() &&
+                        rawFileCount > 0 &&
+                        fsConfigFile.isFile &&
+                        fsConfigFile.length() > 0L
+                    ) {
+                        metadataMarker.writeText("complete")
+                        addLog("[OK] Filesystem terekstrak dari file raw! ($rawFileCount item)")
+                        updateProgress("Ekstrak selesai! $rawFileCount item")
                         OperationResult(
                             true,
                             "Extract Filesystem",
-                            "Filesystem extracted via raw ($fileCount items)",
+                            "Filesystem extracted via raw ($rawFileCount items)",
                             outDir.absolutePath,
                         )
                     } else {
@@ -1307,9 +1350,17 @@ class AFFTService(
                                         workingFile.absolutePath,
                                     ),
                                 workingDir = getTempDir(),
+                                envVars = mapOf("AFFT_FS_CONFIG_FILE" to fsConfigFile.absolutePath),
                                 onProgress = { addLog(it) },
                             )
-                        if (rdumpResult.exitCode == 0 && debugfsDiagnostics(rdumpResult.errorOutput).isEmpty()) {
+                        val rdumpFileCount = if (outDir.exists()) outDir.walkTopDown().count() - 1 else 0
+                        if (rdumpResult.exitCode == 0 &&
+                            debugfsDiagnostics(rdumpResult.errorOutput).isEmpty() &&
+                            rdumpFileCount > 0 &&
+                            fsConfigFile.isFile &&
+                            fsConfigFile.length() > 0L
+                        ) {
+                            metadataMarker.writeText("complete")
                             addLog("[OK] Ekstrak berhasil dengan rdump!")
                             OperationResult(
                                 true,
@@ -1438,7 +1489,8 @@ class AFFTService(
                         addLog("[INFO] Source folder: ${it.absolutePath}")
                     }
                 } else {
-                    File(File(getTempDir(), "contents"), dirName)
+                    val internalSource = File(getFilesystemContentsDir(), dirName)
+                    if (internalSource.exists()) internalSource else File(File(getTempDir(), "contents"), dirName)
                 }
             if (!srcDir.exists()) {
                 return OperationResult(
@@ -1457,6 +1509,19 @@ class AFFTService(
             val makeExt4 = BinaryManager.getBinaryPath(context, "make_ext4fs")
             val mkfsErofs = BinaryManager.getBinaryPath(context, "mkfs.erofs")
             val fileContextsPath = findFileContexts(srcDir)
+            val managedSource = runCatching { srcDir.canonicalFile == File(getFilesystemContentsDir(), dirName).canonicalFile }.getOrDefault(false)
+            val fsConfigFile = getFilesystemConfigFile(dirName)
+            val metadataMarker = getFilesystemMetadataMarker(dirName)
+            val metadataRequired = managedSource && metadataMarker.exists()
+            if (metadataRequired &&
+                (metadataMarker.readText().trim() != "complete" || !fsConfigFile.isFile || fsConfigFile.length() == 0L)
+            ) {
+                return failResult(
+                    "Repack Filesystem",
+                    "Metadata UID/GID/mode tidak tersedia; hasil ekstraksi ini tidak aman untuk repack",
+                )
+            }
+            val fsConfigPath = if (managedSource && fsConfigFile.isFile) fsConfigFile.absolutePath else null
 
             updateProgress("Repacking filesystem...")
 
@@ -1470,6 +1535,7 @@ class AFFTService(
                         outputFile,
                         srcDir,
                         fileContextsPath,
+                        fsConfigPath,
                         "lz4hc,9",
                     )
                 if (erofsOk) {
@@ -1491,6 +1557,7 @@ class AFFTService(
                             outputFile,
                             srcDir,
                             fileContextsPath,
+                            fsConfigPath,
                             null,
                         )
                     if (erofsOk) {
@@ -1506,6 +1573,12 @@ class AFFTService(
                     } else {
                         addLog("[FAIL] mkfs.erofs lz4hc dan none gagal, fallback ke make_ext4fs...")
                         if (outputFile.exists()) outputFile.delete()
+                        if (fsConfigPath != null) {
+                            return failResult(
+                                "Repack Filesystem",
+                                "EROFS gagal; fallback ext4 tidak dapat mempertahankan metadata UID/GID/mode",
+                            )
+                        }
                         // Fallback ke make_ext4fs
                         if (makeExt4 != null) {
                             val fallbackOk = repackExt4(makeExt4, outputFile, srcDir)
@@ -1534,6 +1607,12 @@ class AFFTService(
                     }
                 }
             } else if (makeExt4 != null) {
+                if (fsConfigPath != null) {
+                    return failResult(
+                        "Repack Filesystem",
+                        "make_ext4fs tidak dapat menerapkan metadata fs_config yang tersimpan",
+                    )
+                }
                 addLog("Running: make_ext4fs -s ${dirName}_repack.img $dirName/")
                 val repackOk = repackExt4(makeExt4, outputFile, srcDir)
                 if (repackOk) {
@@ -1584,6 +1663,7 @@ class AFFTService(
         outputFile: File,
         srcDir: File,
         fileContextsPath: String?,
+        fsConfigPath: String?,
         compression: String?,
     ): Boolean {
         if (outputFile.exists()) outputFile.delete()
@@ -1595,6 +1675,9 @@ class AFFTService(
         cmdArgs.addAll(listOf("-C", "4096"))
         if (fileContextsPath != null) {
             cmdArgs.add("--file-contexts=$fileContextsPath")
+        }
+        if (fsConfigPath != null) {
+            cmdArgs.add("--fs-config-file=$fsConfigPath")
         }
         cmdArgs.add(outputFile.absolutePath)
         cmdArgs.add(srcDir.absolutePath)
@@ -1993,6 +2076,18 @@ class AFFTService(
             } else {
                 addLog("[INFO] $dirName/ does not exist, skipping")
             }
+            if (dirName == "contents") {
+                val filesystemWorkDir = File(context.filesDir, "afft_work/filesystem")
+                val filesRoot = context.filesDir.canonicalFile
+                val filesystemPath = filesystemWorkDir.canonicalFile
+                if (!filesystemPath.path.startsWith(filesRoot.path + File.separator)) {
+                    addLog("[ERROR] Safety abort: filesystem work directory is outside internal storage")
+                } else if (filesystemWorkDir.exists() && !filesystemWorkDir.deleteRecursively()) {
+                    addLog("[ERROR] Tidak dapat membersihkan hasil filesystem internal")
+                } else {
+                    addLog("Cleaned: internal filesystem contents and metadata")
+                }
+            }
         }
         ensureDirs()
 
@@ -2000,13 +2095,21 @@ class AFFTService(
     }
 
     suspend fun listContentsDirs(): List<String> {
-        val contentsDir = File(getTempDir(), "contents")
-        if (!contentsDir.exists()) return emptyList()
-        return contentsDir
-            .listFiles()
-            ?.filter { it.isDirectory }
-            ?.map { it.name }
-            ?.sorted() ?: emptyList()
+        val dirs =
+            listOf(
+                getFilesystemContentsDir(),
+                File(getTempDir(), "contents"),
+            )
+        return dirs
+            .flatMap { contentsDir ->
+                contentsDir
+                    .listFiles()
+                    ?.filter { it.isDirectory }
+                    ?.map { it.name }
+                    ?: emptyList()
+            }
+            .distinct()
+            .sorted()
     }
 
     suspend fun exportSelectedToDownloads(selectedFolders: List<String>): OperationResult {
@@ -2036,6 +2139,20 @@ class AFFTService(
                                 } else {
                                     addLog("  [INFO] input/ is empty, skipping")
                                 }
+                            }
+                        }
+                        "contents" -> {
+                            val internalContents = getFilesystemContentsDir()
+                            val contents =
+                                if (internalContents.listFiles().isNullOrEmpty()) {
+                                    File(tempDir, "contents")
+                                } else {
+                                    internalContents
+                                }
+                            if (contents.listFiles().isNullOrEmpty()) {
+                                addLog("  [INFO] contents/ is empty, skipping")
+                            } else if (copyDirectoryToDownloads(contents, "contents")) {
+                                copiedCount++
                             }
                         }
                         else -> {
@@ -2165,6 +2282,31 @@ class AFFTService(
                 true
             } else {
                 addLog("  [ERROR] Gagal memindah $subdirName/")
+                false
+            }
+        } catch (e: Exception) {
+            addLog("  [ERROR] Export $subdirName gagal: ${e.message}")
+            false
+        }
+
+    private suspend fun copyDirectoryToDownloads(
+        srcDir: File,
+        subdirName: String,
+    ): Boolean =
+        try {
+            val baseDir = getExportDir()
+            if (!baseDir.exists()) baseDir.mkdirs()
+            val destDir = File(baseDir, subdirName)
+            if (destDir.exists() && !destDir.deleteRecursively()) {
+                addLog("  [ERROR] Gagal membersihkan tujuan ekspor $subdirName/")
+                return false
+            }
+            srcDir.copyRecursively(destDir, overwrite = true)
+            if (destDir.isDirectory) {
+                addLog("  Disalin: $subdirName/ (${destDir.walkTopDown().count() - 1} items)")
+                true
+            } else {
+                addLog("  [ERROR] Gagal menyalin $subdirName/")
                 false
             }
         } catch (e: Exception) {

@@ -41,6 +41,9 @@ if [ -n "$(git -C "$E2FS_DIR" status --porcelain)" ]; then
     echo "ERROR: e2fsprogs source tree is modified." >&2
     exit 1
 fi
+E2FS_PATCH="$SRC_DIR/tools/debugfs-fs-config.patch"
+git -C "$E2FS_DIR" apply --check "$E2FS_PATCH"
+git -C "$E2FS_DIR" apply "$E2FS_PATCH"
 (
     cd "$E2FS_DIR"
     ./configure --host=aarch64-linux-android \
@@ -53,6 +56,19 @@ fi
 )
 install -m 755 "$E2FS_DIR/debugfs/debugfs" "$JNILIBS_DIR/libdebugfs.so"
 readelf -h "$JNILIBS_DIR/libdebugfs.so" | grep -q 'AArch64'
+
+echo "=== Test patched debugfs fs_config extraction ==="
+E2FS_HOST_DIR="$WORK_DIR/e2fsprogs-host-$E2FSPROGS_VERSION"
+mkdir -p "$E2FS_HOST_DIR"
+git -C "$E2FS_DIR" archive "$E2FSPROGS_COMMIT" | tar -x -C "$E2FS_HOST_DIR"
+git -C "$E2FS_HOST_DIR" apply "$E2FS_PATCH"
+(
+    cd "$E2FS_HOST_DIR"
+    ./configure --disable-tls --disable-uuidd --disable-e2initrd-helper
+    make -j"$(nproc)" libs
+    make -C debugfs -j"$(nproc)" debugfs
+)
+bash "$SRC_DIR/tools/test_debugfs_fs_config.sh" "$E2FS_HOST_DIR/debugfs/debugfs"
 
 echo "=== Build EROFS Tools from pinned source ==="
 NDK_DIR="$NDK_DIR" SRC_DIR="$SRC_DIR" WORK_DIR="$WORK_DIR/erofs" \
