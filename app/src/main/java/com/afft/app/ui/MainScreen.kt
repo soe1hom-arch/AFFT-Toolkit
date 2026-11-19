@@ -1475,7 +1475,9 @@ fun HomeScreen(
             AppDialog(
                 iconRes = R.drawable.ic_save_alt,
                 title = "Export ke Downloads/AFFT",
-                subtitle = "Pilih folder workspace untuk disalin ke Downloads/AFFT/.",
+                subtitle =
+                    "Ekspor memeriksa dukungan tujuan; hasil filesystem menyertakan fs_config. " +
+                        "Sumber internal tidak dihapus.",
                 onDismiss = { showExportDialog = false },
                 content = {
                     Column(
@@ -1487,7 +1489,7 @@ fun HomeScreen(
                     ) {
                         exportOptions.forEach { (folder, selected) ->
                             CheckableOptionRow(
-                                label = folder,
+                                label = if (folder == "contents") "filesystem (hasil + fs_config)" else folder,
                                 checked = selected,
                                 onCheckedChange = { checked ->
                                     exportOptions = exportOptions + (folder to checked)
@@ -1515,7 +1517,8 @@ fun HomeScreen(
                                         "Mengekspor ${selectedFolders.size} folder...",
                                         Toast.LENGTH_SHORT,
                                     ).show()
-                                afftService.exportSelectedToDownloads(selectedFolders)
+                                val result = afftService.exportSelectedToDownloads(selectedFolders)
+                                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
                             }
                         },
                     ) {

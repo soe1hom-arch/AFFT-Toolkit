@@ -133,11 +133,15 @@ Repack supported workflows and access generated output.
 - Output to `Download/AFFT`
 - File management through AFFT Manager
 
-Exports create copies without deleting existing output or the source. Symbolic
-links are copied as links; export fails if the destination does not support
-them, and may leave a partial copy. Exported filesystem metadata is not
-validated for repack or flashing. File Manager moves require a direct rename;
-if that fails (for example across filesystems), the source is retained.
+Exports are copies; they never delete or replace the source. Before export,
+AFFT checks free space and whether `Download/AFFT` can preserve the required
+file timestamps, POSIX permissions, and symbolic links. Filesystem exports
+include the internal `fs_config` metadata and are rejected if that metadata is
+incomplete. Unsupported files or metadata abort the export, and any staged
+partial copy is removed. Use the internal workspace as the source for repack;
+an exported copy is not validated for flashing. AFFT Manager can browse and
+manage the internal filesystem workspace directly. Move operations are limited
+to internal workspace folders; public storage is available through Export.
 
 </td>
 </tr>
@@ -271,6 +275,12 @@ AFFT Toolkit uses a dedicated application workspace:
 ```text
 /storage/emulated/0/Android/data/com.afft.app/files/workspace/
 ```
+
+Extracted filesystem contents and their `fs_config` metadata are stored in the
+app's private internal files area under `afft_work/filesystem/`. AFFT Manager's
+**Workspace** location opens this area directly; it does not require an
+external file manager. Exporting the `contents` option creates a copy of the
+complete `filesystem/` workspace under `Download/AFFT/`.
 
 | Directory / Resource | Purpose |
 |:--|:--|

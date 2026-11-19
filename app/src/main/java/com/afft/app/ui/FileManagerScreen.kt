@@ -291,6 +291,7 @@ fun FileManagerScreen(
         ) {
             val locations = listOf(
                 Triple("Penyimpanan", R.drawable.ic_phone_android, File("/storage/emulated/0")),
+                Triple("Workspace", R.drawable.ic_folder, afftService.getFilesystemWorkspaceDir()),
                 Triple("Filesystem", R.drawable.ic_folder, afftService.getFilesystemContentsDir()),
                 Triple("Input", R.drawable.ic_drive_file_move, inputDir),
                 Triple("Downloads", R.drawable.ic_download, downloadDir),
@@ -681,8 +682,8 @@ fun FileManagerScreen(
             content = {
                 DialogOptionCard(
                     iconRes = R.drawable.ic_download,
-                    title = "Downloads/AFFT",
-                    description = "Folder hasil ekspor di penyimpanan publik",
+                    title = "Ekspor ke Downloads/AFFT",
+                    description = "Validasi dukungan tujuan; salinan gagal dibersihkan dan sumber tetap utuh",
                     emphasized = true,
                     onClick = {
                         showCopyDestDialog = false
@@ -690,10 +691,12 @@ fun FileManagerScreen(
                             operationInProgress = true
                             var ok = 0
                             for (f in selectedFiles) {
-                                if (afftService.copyFileTo(f, downloadDir)) ok++
+                                if (afftService.exportFileToDownloads(f)) ok++
                             }
                             operationInProgress = false
-                            toastMessage = "Salin: $ok berhasil, ${selectedFiles.size - ok} gagal. Lihat konsol untuk detail."
+                            toastMessage =
+                                "Ekspor: $ok berhasil, ${selectedFiles.size - ok} gagal. " +
+                                    "Sumber tetap utuh; lihat konsol untuk detail."
                             refreshFiles(currentDir ?: inputDir)
                         }
                     },
@@ -751,29 +754,9 @@ fun FileManagerScreen(
         AppDialog(
             iconRes = R.drawable.ic_drive_file_move,
             title = "Pindah ke...",
-            subtitle = "Pilih tujuan pemindahan untuk ${selectedFiles.size} file terpilih.",
+            subtitle = "Pilih tujuan internal. Folder publik hanya tersedia lewat Ekspor agar sumber tetap utuh.",
             onDismiss = { showMoveDestDialog = false },
             content = {
-                DialogOptionCard(
-                    iconRes = R.drawable.ic_download,
-                    title = "Downloads/AFFT",
-                    description = "Folder hasil ekspor di penyimpanan publik",
-                    emphasized = true,
-                    onClick = {
-                        showMoveDestDialog = false
-                        scope.launch {
-                            operationInProgress = true
-                            var ok = 0
-                            for (f in selectedFiles) {
-                                if (afftService.moveFileTo(f, downloadDir)) ok++
-                            }
-                            operationInProgress = false
-                            toastMessage = "Pindah: $ok berhasil, ${selectedFiles.size - ok} gagal. Lihat konsol untuk detail."
-                            refreshFiles(currentDir ?: inputDir)
-                        }
-                    },
-                )
-                Spacer(modifier = Modifier.height(10.dp))
                 DialogOptionCard(
                     iconRes = R.drawable.ic_folder_open,
                     title = "Input/ (workspace)",
@@ -804,26 +787,6 @@ fun FileManagerScreen(
                             var ok = 0
                             for (f in selectedFiles) {
                                 val dest = currentDir ?: inputDir
-                                if (afftService.moveFileTo(f, dest)) ok++
-                            }
-                            operationInProgress = false
-                            toastMessage = "Pindah: $ok berhasil, ${selectedFiles.size - ok} gagal. Lihat konsol untuk detail."
-                            refreshFiles(currentDir ?: inputDir)
-                        }
-                    },
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                DialogOptionCard(
-                    iconRes = R.drawable.ic_download,
-                    title = "Downloads/ (root)",
-                    description = "Folder Download utama di penyimpanan publik",
-                    onClick = {
-                        showMoveDestDialog = false
-                        scope.launch {
-                            operationInProgress = true
-                            val dest = File("/storage/emulated/0/Download")
-                            var ok = 0
-                            for (f in selectedFiles) {
                                 if (afftService.moveFileTo(f, dest)) ok++
                             }
                             operationInProgress = false

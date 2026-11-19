@@ -69,6 +69,7 @@ class AFFTService(
             onLog = ::addLog,
             onLiveActivity = ::setLiveActivity,
             filesystemContentsDir = ::getFilesystemContentsDir,
+            filesystemWorkspaceDir = ::getFilesystemWorkspaceDir,
         )
 
     private val _isRunning = MutableStateFlow(false)
@@ -266,6 +267,11 @@ class AFFTService(
         destDir: File,
     ): Boolean = storageManager.copyFileTo(src, destDir)
 
+    suspend fun exportFileToDownloads(
+        src: File,
+        destName: String? = null,
+    ): Boolean = storageManager.exportToDownloads(src, destName)
+
     suspend fun moveFileTo(
         src: File,
         destDir: File,
@@ -292,14 +298,17 @@ class AFFTService(
         return dir
     }
 
+    fun getFilesystemWorkspaceDir(): File =
+        File(context.filesDir, "afft_work/filesystem").apply { mkdirs() }
+
     fun getFilesystemContentsDir(): File =
-        File(context.filesDir, "afft_work/filesystem/contents").apply { mkdirs() }
+        File(getFilesystemWorkspaceDir(), "contents").apply { mkdirs() }
 
     fun getFilesystemConfigFile(name: String): File =
-        File(File(context.filesDir, "afft_work/filesystem/fs_config").apply { mkdirs() }, "$name.txt")
+        File(File(getFilesystemWorkspaceDir(), "fs_config").apply { mkdirs() }, "$name.txt")
 
     private fun getFilesystemMetadataMarker(name: String): File =
-        File(File(context.filesDir, "afft_work/filesystem/fs_config").apply { mkdirs() }, "$name.required")
+        File(File(getFilesystemWorkspaceDir(), "fs_config").apply { mkdirs() }, "$name.required")
 
     fun getInputDir(): File {
         val dir = File(getWorkDir(), "input")
@@ -2211,7 +2220,7 @@ class AFFTService(
                             if (inputDir.exists()) {
                                 val inputFiles = inputDir.listFiles()
                                 if (!inputFiles.isNullOrEmpty()) {
-                                    if (moveDirectoryToDownloads(inputDir, "input")) {
+                                    if (exportDirectoryToDownloads(inputDir, "input")) {
                                         copiedCount++
                                     } else {
                                         failedCount++
@@ -2222,27 +2231,29 @@ class AFFTService(
                             }
                         }
                         "contents" -> {
-                            val internalContents = getFilesystemContentsDir()
-                            val contents =
-                                if (internalContents.listFiles().isNullOrEmpty()) {
-                                    File(tempDir, "contents")
-                                } else {
-                                    internalContents
-                                }
-                            if (contents.listFiles().isNullOrEmpty()) {
+                            val contents = getFilesystemWorkspaceDir()
+                            val entries =
+                                contents.listFiles()
+                                    ?: throw IOException("Workspace filesystem tidak dapat dibaca")
+                            if (entries.isEmpty()) {
                                 addLog("  [INFO] contents/ is empty, skipping")
-                            } else if (copyDirectoryToDownloads(contents, "contents")) {
+                            } else if (exportDirectoryToDownloads(contents, "filesystem")) {
                                 copiedCount++
                             } else {
                                 failedCount++
                             }
                         }
                         else -> {
+                            if (subdir !in setOf("payload", "img", "repacked", "boot_out")) {
+                                addLog("[WARN] Folder ekspor tidak dikenal: $subdir; sumber tetap dipertahankan")
+                                failedCount++
+                                continue
+                            }
                             val src = File(tempDir, subdir)
                             if (src.exists() && src.isDirectory) {
                                 val files = src.listFiles()
                                 if (!files.isNullOrEmpty()) {
-                                    if (moveDirectoryToDownloads(src, subdir)) {
+                                    if (exportDirectoryToDownloads(src, subdir)) {
                                         copiedCount++
                                     } else {
                                         failedCount++
@@ -2258,7 +2269,12 @@ class AFFTService(
                 }
 
                 if (failedCount > 0) {
-                    result = failResult("Export Selected", "$failedCount folder gagal diekspor; $copiedCount berhasil")
+                    result =
+                        failResult(
+                            "Export Selected",
+                            "$failedCount folder gagal diekspor; $copiedCount berhasil. " +
+                                "Sumber asli tetap dipertahankan; lihat konsol untuk detail.",
+                        )
                     addLog("[ERROR] ${result.message}")
                 } else if (copiedCount > 0) {
                     addLog("[OK] $copiedCount folder(s) diekspor ke Downloads/AFFT/")
@@ -2275,6 +2291,8 @@ class AFFTService(
                     updateProgress("Tidak ada data untuk diekspor")
                     result = OperationResult(true, "Export Selected", "Tidak ada data untuk diekspor")
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 addLog("[ERROR] Export gagal: ${e.message}")
                 result = failResult("Export Selected", e.message ?: "Unknown error")
@@ -2298,31 +2316,9 @@ class AFFTService(
                 if (logManager.debugMode) addLog("[DEBUG] Source file not found: $resultPath")
                 return false
             }
-
-            val downloadsDir = getExportDir()
-            if (!downloadsDir.exists()) downloadsDir.mkdirs()
-
-            val destFile = File(downloadsDir, destName)
-            withContext(Dispatchers.IO) {
-                val total = sourceFile.length()
-                val bufSize = 8192
-                sourceFile.inputStream().use { input ->
-                    destFile.outputStream().use { output ->
-                        val buffer = ByteArray(bufSize)
-                        var bytesCopied = 0L
-                        var bytesRead: Int
-                        while (input.read(buffer).also { bytesRead = it } != -1) {
-                            output.write(buffer, 0, bytesRead)
-                            bytesCopied += bytesRead
-                            if (total > 0 && bytesCopied % (total / 20 + 1) < bufSize) {
-                                updateProgress("Copying to Downloads... ${(bytesCopied * 100 / total)}%")
-                            }
-                        }
-                    }
-                }
-            }
-            addLog("[OK] Copied to Downloads/AFFT/$destName (${formatFileSize(destFile.length())})")
-            true
+            storageManager.exportToDownloads(sourceFile, destName)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             addLog("[ERROR] Copy failed: ${e.message}")
             false
@@ -2333,20 +2329,12 @@ class AFFTService(
      * List files in the input/ directory.
      */
 
-    private suspend fun moveDirectoryToDownloads(
+    private suspend fun exportDirectoryToDownloads(
         srcDir: File,
         subdirName: String,
     ): Boolean {
         addLog("[INFO] Ekspor $subdirName sebagai salinan; sumber tetap disimpan")
-        return storageManager.copyFileTo(srcDir, getExportDir())
-    }
-
-    private suspend fun copyDirectoryToDownloads(
-        srcDir: File,
-        subdirName: String,
-    ): Boolean {
-        addLog("[INFO] Ekspor $subdirName sebagai salinan; sumber tetap disimpan")
-        return storageManager.copyFileTo(srcDir, getExportDir())
+        return storageManager.exportToDownloads(srcDir, subdirName)
     }
 
     suspend fun listInputFiles(): List<File> {

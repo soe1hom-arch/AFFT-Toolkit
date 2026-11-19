@@ -652,6 +652,104 @@ class AFFTServiceTest {
     }
 
     @Test
+    fun exportToDownloads_copiesFilesystemWorkspaceWithMetadataAndKeepsSource() = runBlocking {
+        val workDir = File(tmp.root, "work").apply { mkdirs() }
+        val workspace = File(tmp.root, "internal/filesystem")
+        val contents = File(workspace, "contents/system").apply { mkdirs() }
+        val sourceFile = File(contents, "build.prop").apply { writeText("ro.build.version.release=15") }
+        val sourceLink = File(contents, "build.prop.link").toPath()
+        java.nio.file.Files.createSymbolicLink(sourceLink, java.nio.file.Paths.get("build.prop"))
+        val metadataDir = File(workspace, "fs_config").apply { mkdirs() }
+        File(metadataDir, "system.txt").writeText("system/build.prop 0 0 0644")
+        File(metadataDir, "system.required").writeText("complete")
+        val downloads = File(tmp.root, "Download/AFFT")
+        val messages = mutableListOf<String>()
+        val storage =
+            StorageManager(
+                { workDir },
+                { downloads },
+                messages::add,
+                {},
+                filesystemContentsDir = { File(workspace, "contents") },
+                filesystemWorkspaceDir = { workspace },
+            )
+
+        assertTrue(storage.exportToDownloads(workspace, "filesystem"))
+
+        assertEquals(
+            "ro.build.version.release=15",
+            File(downloads, "filesystem/contents/system/build.prop").readText(),
+        )
+        assertEquals(
+            "system/build.prop 0 0 0644",
+            File(downloads, "filesystem/fs_config/system.txt").readText(),
+        )
+        val exportedLink = File(downloads, "filesystem/contents/system/build.prop.link").toPath()
+        assertTrue(java.nio.file.Files.isSymbolicLink(exportedLink))
+        assertEquals(java.nio.file.Paths.get("build.prop"), java.nio.file.Files.readSymbolicLink(exportedLink))
+        assertTrue(sourceFile.exists())
+        assertTrue(java.nio.file.Files.isSymbolicLink(sourceLink))
+        assertTrue(File(metadataDir, "system.required").exists())
+        assertTrue(messages.any { it.contains("sumber asli tetap utuh") })
+    }
+
+    @Test
+    fun exportToDownloads_rejectsPartialFilesystemWorkspaceAndIncompleteMetadata() = runBlocking {
+        val workDir = File(tmp.root, "work").apply { mkdirs() }
+        val workspace = File(tmp.root, "internal/filesystem")
+        val source = File(workspace, "contents/system").apply { mkdirs() }
+        File(source, "file").writeText("keep")
+        val metadataDir = File(workspace, "fs_config").apply { mkdirs() }
+        File(metadataDir, "system.required").writeText("incomplete")
+        val downloads = File(tmp.root, "Download/AFFT")
+        val messages = mutableListOf<String>()
+        val storage =
+            StorageManager(
+                { workDir },
+                { downloads },
+                messages::add,
+                {},
+                filesystemContentsDir = { File(workspace, "contents") },
+                filesystemWorkspaceDir = { workspace },
+            )
+
+        assertFalse(storage.exportToDownloads(source))
+        assertTrue(File(source, "file").exists())
+        assertFalse(File(downloads, "system").exists())
+
+        assertFalse(storage.exportToDownloads(workspace, "filesystem"))
+        assertTrue(File(source, "file").exists())
+        assertFalse(File(downloads, "filesystem").exists())
+        assertTrue(messages.any { it.contains("fs_config ikut tersimpan") })
+        assertTrue(messages.any { it.contains("metadata") })
+    }
+
+    @Test
+    fun moveFileTo_publicDownloadsIsRejectedAndSourceRemains() = runBlocking {
+        val workDir = File(tmp.root, "work").apply { mkdirs() }
+        val downloads = File(tmp.root, "Download/AFFT")
+        val source = File(workDir, "important.img").apply { writeText("original") }
+        val filesystemWorkspace = File(tmp.root, "internal/filesystem")
+        val filesystemSource = File(filesystemWorkspace, "contents/system/build.prop").apply {
+            parentFile!!.mkdirs()
+            writeText("original filesystem data")
+        }
+        val storage =
+            StorageManager(
+                { workDir },
+                { downloads },
+                {},
+                {},
+                filesystemWorkspaceDir = { filesystemWorkspace },
+            )
+
+        assertFalse(storage.moveFileTo(source, downloads))
+        assertEquals("original", source.readText())
+        assertFalse(storage.moveFileTo(filesystemSource, workDir))
+        assertEquals("original filesystem data", filesystemSource.readText())
+    }
+
+    @Test
     fun moveFileTo_rejectsSourceOutsideAllowedRoots() = runBlocking {
         val service = newService()
         val outside = File(tmp.root, "outside").apply { writeText("keep") }
