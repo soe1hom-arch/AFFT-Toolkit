@@ -1,0 +1,22 @@
+diff --git a/build/cmake/erofs-tools/erofs_tools.cmake b/build/cmake/erofs-tools/erofs_tools.cmake
+--- a/build/cmake/erofs-tools/erofs_tools.cmake
++++ b/build/cmake/erofs-tools/erofs_tools.cmake
+@@ -48,7 +48,9 @@
++set(non_fuse_static_link_lib ${common_static_link_lib})
++list(REMOVE_ITEM non_fuse_static_link_lib fuse_static)
+ ###############################------mkfs.erofs------###############################
+ set(TARGET_mkfs mkfs.erofs)
+ file(GLOB mkfs_srcs "${PROJECT_ROOT_DIR}/mkfs/*.c")
+ add_executable(${TARGET_mkfs} ${mkfs_srcs})
+ target_include_directories(${TARGET_mkfs} PRIVATE ${common_headers})
+-target_link_libraries(${TARGET_mkfs} ${common_static_link_lib})
++target_link_libraries(${TARGET_mkfs} ${non_fuse_static_link_lib})
+ target_compile_options(${TARGET_mkfs} PRIVATE ${common_compile_flags})
+diff --git a/build/cmake/erofs-tools/extract.cmake b/build/cmake/erofs-tools/extract.cmake
+--- a/build/cmake/erofs-tools/extract.cmake
++++ b/build/cmake/erofs-tools/extract.cmake
+@@ -9,3 +9,3 @@
+ )
+-target_link_libraries(${TARGET_extract} ${common_static_link_lib})
++target_link_libraries(${TARGET_extract} ${non_fuse_static_link_lib})
+ target_compile_options(${TARGET_extract} PRIVATE ${common_compile_flags} "-Wno-unused-result")

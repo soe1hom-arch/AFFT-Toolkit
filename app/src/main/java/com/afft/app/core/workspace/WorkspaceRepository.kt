@@ -16,6 +16,7 @@
 
 package com.afft.app.core.workspace
 
+import com.afft.app.util.deleteTreeNoFollow
 import java.io.File
 
 /**
@@ -50,7 +51,7 @@ class WorkspaceRepository {
 
     fun deleteProject(root: File): Result<Unit> =
         runCatching {
-            if (root.exists() && !root.deleteRecursively()) error("Cannot delete ${root.name}")
+            deleteTreeNoFollow(root)
         }
 
     /** Menulis JSON mini untuk metadata proyek (flat object). */

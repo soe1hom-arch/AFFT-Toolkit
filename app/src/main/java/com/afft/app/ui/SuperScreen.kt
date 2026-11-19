@@ -455,7 +455,7 @@ fun SuperScreen(
 
         if (isRunning) {
             Spacer(modifier = Modifier.height(16.dp))
-            ProcessingOverlay(isRunning = true)
+            ProcessingOverlay(isRunning = true, message = progressMessage.ifBlank { "Memproses super.img..." })
         }
 
         repackResult?.let {

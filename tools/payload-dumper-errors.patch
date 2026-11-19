@@ -1,0 +1,97 @@
+--- a/main.go
++++ b/main.go
+@@ -89,7 +89,9 @@
+ 	if err := payload.Open(); err != nil {
+ 		log.Fatal(err)
+ 	}
+-	payload.Init()
++	if err := payload.Init(); err != nil {
++		log.Fatal(err)
++	}
+ 
+ 	if list {
+ 		return
+@@ -119,6 +121,7 @@
+ 			log.Fatal(err)
+ 		}
+ 	}
++	fmt.Fprintln(os.Stderr, "AFFT_PAYLOAD_EXTRACTION_COMPLETE")
+ }
+ 
+ func usage() {
+--- a/payload.go
++++ b/payload.go
+@@ -8,11 +8,11 @@
+ 	"encoding/hex"
+ 	"errors"
+ 	"fmt"
++	"github.com/valyala/gozstd"
+ 	"io"
+ 	"os"
+ 	"sort"
+ 	"sync"
+-	"github.com/valyala/gozstd"
+ 
+ 	humanize "github.com/dustin/go-humanize"
+ 	xz "github.com/spencercw/go-xz"
+@@ -43,9 +43,11 @@
+ 	dataOffset   int64
+ 	initialized  bool
+ 
+-	requests chan *request
+-	workerWG sync.WaitGroup
+-	progress *mpb.Progress
++	requests  chan *request
++	workerWG  sync.WaitGroup
++	progress  *mpb.Progress
++	errorMu   sync.Mutex
++	workerErr error
+ }
+ 
+ const (
+@@ -336,11 +338,19 @@
+ 
+ 		name := fmt.Sprintf("%s.img", partition.GetPartitionName())
+ 		filepath := fmt.Sprintf("%s/%s", targetDirectory, name)
+-		file, err := os.OpenFile(filepath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0o755)
+-		if err != nil {
++		file, err := os.OpenFile(filepath, os.O_EXCL|os.O_CREATE|os.O_WRONLY, 0o755)
++		if err == nil {
++			err = p.Extract(partition, file)
++			if closeErr := file.Close(); err == nil {
++				err = closeErr
++			}
+ 		}
+-		if err := p.Extract(partition, file); err != nil {
+-			fmt.Println(err.Error())
++		if err != nil {
++			p.errorMu.Lock()
++			if p.workerErr == nil {
++				p.workerErr = fmt.Errorf("extract %s: %w", name, err)
++			}
++			p.errorMu.Unlock()
+ 		}
+ 
+ 		p.workerWG.Done()
+@@ -357,6 +367,10 @@
+ 	if !p.initialized {
+ 		return errors.New("Payload has not been initialized")
+ 	}
++	if p.concurrency < 1 {
++		return errors.New("Number of workers must be at least one")
++	}
++	p.workerErr = nil
+ 	p.progress = mpb.New()
+ 
+ 	p.requests = make(chan *request, 100)
+@@ -381,8 +395,9 @@
+ 
+ 	p.workerWG.Wait()
+ 	close(p.requests)
++	p.progress.Wait()
+ 
+-	return nil
++	return p.workerErr
+ }
+ 
+ func (p *Payload) ExtractAll(targetDirectory string) error {
