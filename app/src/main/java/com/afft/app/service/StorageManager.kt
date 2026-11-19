@@ -257,7 +257,7 @@ class StorageManager(
         }
         onLog("[OK] Disalin: ${dest.absolutePath}")
         onLog("[WARN] Metadata firmware belum diverifikasi; salinan bukan hasil siap repack atau flash")
-        true
+        return true
     }
 
     private suspend fun exportToDownloadsInternal(
@@ -299,7 +299,7 @@ class StorageManager(
             verifyCopiedTree(sourcePath, staged.toPath())
             Files.move(staged.toPath(), finalDest.toPath())
             onLog("[OK] Diekspor: ${finalDest.absolutePath}; sumber asli tetap utuh")
-            true
+            return true
         } finally {
             if (Files.exists(stagingDir.toPath(), LinkOption.NOFOLLOW_LINKS)) deleteTreeNoFollow(stagingDir)
         }
