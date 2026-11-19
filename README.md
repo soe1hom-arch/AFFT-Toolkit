@@ -165,6 +165,17 @@ sign, or verify AVB/vbmeta for the new image. The repacked filesystem format
 may also differ from the original. Existing repack outputs are not overwritten;
 if copying to Downloads fails, the diagnostic image remains in the workspace.
 
+For an unlocked bootloader, Boot Tools offers an opt-in copy of a standalone
+top-level vbmeta image with the AVB verification and hashtree disable flags set.
+It preserves the original and never flashes either image. Signed inputs are
+checked against their embedded key, but that key is not checked against the
+device's trusted key; unsigned inputs cannot be authenticated. Changing the
+flags invalidates existing signatures when the flags differ. The app cannot
+determine bootloader state, device compatibility, rollback indices, or chained
+vbmeta requirements. Flag changes are not guaranteed to work on every device
+and disable important protections. Filesystem security metadata remains
+unverified; these copies are not established as safe to flash.
+
 </td>
 </tr>
 </table>

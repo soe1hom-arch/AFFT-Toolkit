@@ -1935,6 +1935,37 @@ class AFFTService(
         return null
     }
 
+    suspend fun createVbmetaDisabledCopy(inputFile: File): OperationResult =
+        withContext(Dispatchers.IO) {
+            if (!beginOperation("Salinan vbmeta diagnostik", "Memeriksa vbmeta...")) {
+                return@withContext OperationResult(
+                    false,
+                    "Salinan vbmeta diagnostik",
+                    "Operasi lain masih berjalan, coba lagi nanti",
+                )
+            }
+            try {
+                val output = VbmetaDiagnostic.createDisabledCopy(inputFile, File(getTempDir(), "repacked"))
+                updateProgress("Salinan vbmeta diagnostik selesai - jangan flash tanpa verifikasi")
+                OperationResult(
+                    true,
+                    "Salinan vbmeta diagnostik",
+                    "Salinan dibuat dengan flag verity dan verifikasi AVB dinonaktifkan. " +
+                        "Pada input bertanda tangan, hash dan tanda tangan diperiksa terhadap kunci di dalam image, " +
+                        "bukan kunci terpercaya perangkat; perubahan flag dapat membatalkan tanda tangan. " +
+                        "AFFT tidak memeriksa status bootloader, kecocokan perangkat, rollback, atau chain vbmeta. " +
+                        "Jangan flash tanpa verifikasi independen.",
+                    output.absolutePath,
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failResult("Salinan vbmeta diagnostik", "Gagal membuat salinan: ${e.message}")
+            } finally {
+                _isRunning.value = false
+            }
+        }
+
     suspend fun unpackBoot(
         inputUri: Uri,
         bootType: String,

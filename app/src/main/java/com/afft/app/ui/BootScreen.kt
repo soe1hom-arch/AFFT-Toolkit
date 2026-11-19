@@ -76,6 +76,8 @@ fun BootScreen(
     var selectedInputFilePath by rememberSaveable { mutableStateOf<String?>(null) }
     var repackStatus by rememberSaveable { mutableStateOf<String?>(null) }
     var repackSucceeded by rememberSaveable { mutableStateOf(false) }
+    var showDisableAvbConfirmation by remember { mutableStateOf(false) }
+    var avbCopyRunning by remember { mutableStateOf(false) }
     val selectedInputFile: File? = selectedInputFilePath?.let { path -> File(path) }
     val workspaceState by workspace.state.collectAsState()
     val progressMessage by afftService.progressMessage.collectAsState()
@@ -99,6 +101,50 @@ fun BootScreen(
     var showWorkspaceBrowser by rememberSaveable { mutableStateOf(false) }
     var showFileManagerPicker by rememberSaveable { mutableStateOf(false) }
     var browseDir by remember { mutableStateOf(afftService.getInputDir()) }
+
+    if (showDisableAvbConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDisableAvbConfirmation = false },
+            title = { Text("Nonaktifkan verifikasi AVB?") },
+            text = {
+                Text(
+                    "Hanya untuk salinan vbmeta utama pada perangkat dengan bootloader terbuka. " +
+                        "Flag AVB dan dm-verity akan dinonaktifkan dan tanda tangan dapat menjadi tidak valid. " +
+                        "AFFT tidak dapat memastikan status bootloader, kecocokan perangkat, rollback, " +
+                        "atau chain vbmeta. Salah penggunaan dapat menyebabkan bootloop atau kehilangan data. " +
+                        "File asli tidak diubah; tidak ada proses flash otomatis.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDisableAvbConfirmation = false
+                        val file = selectedInputFile
+                        if (file != null) {
+                            avbCopyRunning = true
+                            scope.launch {
+                                try {
+                                    val result = afftService.createVbmetaDisabledCopy(file)
+                                    repackSucceeded = result.ok
+                                    repackStatus =
+                                        if (result.outputPath.isNotEmpty()) {
+                                            "${result.message}\nFile workspace: ${result.outputPath}"
+                                        } else {
+                                            result.message
+                                        }
+                                } finally {
+                                    avbCopyRunning = false
+                                }
+                            }
+                        }
+                    },
+                ) { Text("Buat salinan") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDisableAvbConfirmation = false }) { Text("Batal") }
+            },
+        )
+    }
 
     // Auto-detect file dari input/ saat screen dimuat (untuk menghindari copy ulang)
     LaunchedEffect(Unit) {
@@ -146,7 +192,8 @@ fun BootScreen(
                     selectedFileName = it.lastPathSegment
                 }
                 scope.launch {
-                    selectedInputFilePath = afftService.copyPickedFileToInput(it)?.absolutePath
+                    val copied = afftService.copyPickedFileToInput(it)
+                    if (selectedUri == it) selectedInputFilePath = copied?.absolutePath
                 }
             }
         }
@@ -299,6 +346,17 @@ fun BootScreen(
             selectedFileName = selectedFileName,
             onClick = { showSourceSelector = true },
         )
+
+        if (selectedBootType == BootImageType.VBMETA) {
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { showDisableAvbConfirmation = true },
+                enabled = selectedInputFile != null && !isRunning && !avbCopyRunning,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(if (avbCopyRunning) "Membuat salinan..." else "Buat salinan vbmeta dengan AVB dinonaktifkan")
+            }
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
