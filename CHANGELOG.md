@@ -35,8 +35,8 @@
   boot failure or data loss.
 - Workspace editing, native tools and these firmware workflows still require
   validation on actual Android devices. Back up data and keep a recovery path.
-- The existing v2.3.0 release can follow filesystem symlinks during deletion;
-  stop using that build, force-stop it and revoke all-files access.
+- In v2.3.0, deleting a folder containing a symbolic link may affect files at
+  the target. This does not mean that all files are automatically deleted.
 
 ## [2.3.0] — 2026-08-14
 

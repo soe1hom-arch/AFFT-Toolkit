@@ -22,11 +22,11 @@ on your Android device.
 > a new public release. Artifacts may require a GitHub login and can expire.
 
 > [!CAUTION]
-> The released v2.3.0 APK can follow filesystem symlinks while deleting
-> extracted folders, potentially deleting files outside the workspace. Stop
-> using it, force-stop it, and revoke its all-files access. The source fix has
-> not yet been independently validated on Android. Avoid testing extraction
-> or cleanup with important data.
+> In v2.3.0, deleting a folder containing a symbolic link to another directory
+> may affect files at the link's target. This does **not** mean the app
+> automatically deletes all files. The updated source avoids following links
+> during deletion, but has not yet been independently validated on Android.
+> Keep backups and avoid testing cleanup with important data.
 
 ## What you can do
 
