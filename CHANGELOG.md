@@ -1,5 +1,43 @@
 # Changelog
 
+## [Unreleased] — source updates after v2.3.0
+
+> **Release status:** The published v2.3.0 APK does not contain these changes.
+> A debug test APK, if available from GitHub Actions, is not a new release.
+> It may have a different signing key; uninstalling the old app deletes its
+> private workspace. Back up data before changing installations.
+
+### Implemented
+- AFFT Manager opens the internal filesystem workspace and edits supported
+  UTF-8 text files (up to 1 MiB) with conflict checks and atomic replacement.
+- Repeated filesystem and payload extractions use separate output folders.
+  Symlink-safe deletion and storage-capability checks protect earlier data.
+- Filesystem exports are copies and reject incomplete metadata or unsupported
+  destination capabilities; EROFS workspace export is blocked when its
+  `fs_config` metadata is unavailable.
+- Filesystem repack creates uniquely named diagnostic images, warns about
+  missing or mismatched metadata, and retains the workspace output if export
+  fails.
+- An opt-in tool makes a separate standalone top-level vbmeta copy with AVB
+  verification and hashtree flags disabled. The original is retained; no
+  image is flashed. Signed input is checked against its embedded key only.
+- Native tool source builds, license notices, error reporting, and filesystem
+  and payload extraction checks were updated.
+
+### Not yet complete / warnings
+- **Do not flash diagnostic filesystem or vbmeta images.** Complete SELinux,
+  xattr, capabilities and hardlink preservation and verification are not
+  available. Filesystem repack may change the filesystem format.
+- The vbmeta copy is not re-signed and modifying flags can invalidate its
+  signature. The app does not verify a trusted device key, AVB chain,
+  rollback, device compatibility or bootloader state. An unlocked bootloader
+  does not guarantee success. Disabling AVB weakens security and can lead to
+  boot failure or data loss.
+- Workspace editing, native tools and these firmware workflows still require
+  validation on actual Android devices. Back up data and keep a recovery path.
+- The existing v2.3.0 release can follow filesystem symlinks during deletion;
+  stop using that build, force-stop it and revoke all-files access.
+
 ## [2.3.0] — 2026-08-14
 
 ### Added
@@ -69,7 +107,7 @@
 ## [2.1.0] — 2026-07-04
 
 - Super unpack/repack with lucky-arch
-- Boot repack + AVB signing
+- Boot repack (historical release note; current source does not provide AVB signing)
 - File Manager upgrade (search, sort, rename, properties)
 - Full-screen About dialog with binary credits
 - Fixed ANR, duplicate logs, boot auto-detect

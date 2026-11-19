@@ -11,10 +11,18 @@
 
 A native Android toolkit for analyzing, unpacking, modifying, and repacking Android firmware — directly on your device.
 
+> [!IMPORTANT]
+> **The current published APK (v2.3.0) does not contain the updates described
+> in the current `main` branch.** The source and a debug test build are not a
+> new public release. Check the [Actions build artifacts](https://github.com/soe1hom-arch/AFFT-Toolkit/actions/workflows/build.yml)
+> for an explicitly identified test APK; it may be unavailable or expired.
+
 > **Data-loss warning:** Existing builds can follow filesystem symlinks while
 > deleting extracted folders, potentially deleting files outside the workspace.
-> Stop using AFFT, force-stop it, and revoke its all-files access until a fix
-> has been independently validated. Do not retry extraction or cleaning.
+> The published v2.3.0 APK predates the source fix. Stop using it, force-stop
+> it, and revoke its all-files access. The source fix has not yet been
+> independently validated on Android; do not retry extraction or cleaning on
+> important data.
 
 <br>
 
@@ -190,6 +198,27 @@ unverified; these copies are not established as safe to flash.
 - **Unified Navigation** — access the main toolkit modules from one interface.
 
 > Feature availability depends on the selected image format, supported workflow, and device environment.
+
+## `CURRENT DEVELOPMENT STATUS`
+
+**Implemented in source:** AFFT Manager can browse and edit supported UTF-8
+workspace files; extraction uses separate folders; filesystem export checks
+destination capabilities; diagnostic repack and the opt-in vbmeta flag copy
+show safety warnings. Native build scripts and license notices were updated.
+See [CHANGELOG.md](CHANGELOG.md) for details.
+
+**Not complete:** Preservation and verification of all SELinux labels, xattrs,
+capabilities and hardlinks; AVB chain and trusted-key verification; signing
+modified images; and confirmation on actual Android devices. An unlocked
+bootloader is not proof of compatibility or safety. Do not flash diagnostic
+images or modified vbmeta without independent, device-specific verification
+and a tested recovery plan. Disabling AVB removes important protections and can
+cause boot failure or data loss.
+
+The existing release APK remains unchanged. A debug artifact is for testing,
+may use a different signing key from the released APK, and may not install over
+it. Do not uninstall the existing app without first backing up its data:
+uninstalling deletes the app's private workspace.
 
 ---
 
