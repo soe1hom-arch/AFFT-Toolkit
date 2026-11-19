@@ -152,6 +152,19 @@ files outside this workspace cannot be edited. This is not an APK or binary
 editor; preservation of all firmware security labels and metadata is not
 guaranteed, and a repacked image should not be assumed safe to flash.
 
+Every filesystem extraction uses a new workspace folder, including repeated
+extractions of the same image, so earlier edits and their metadata are not
+replaced. Failed extractions are marked incomplete and cannot be repacked;
+EROFS extraction currently cannot capture equivalent `fs_config` metadata, so
+the filesystem workspace export is rejected while that metadata is unavailable.
+
+Filesystem repack produces **diagnostic images only — do not flash**. The app
+warns when `fs_config` no longer matches the workspace or `file_contexts` is
+missing. It cannot verify all SELinux labels or xattrs, and does not preserve,
+sign, or verify AVB/vbmeta for the new image. The repacked filesystem format
+may also differ from the original. Existing repack outputs are not overwritten;
+if copying to Downloads fails, the diagnostic image remains in the workspace.
+
 </td>
 </tr>
 </table>

@@ -93,6 +93,8 @@ fun FilesystemScreen(
     var selectedDir by rememberSaveable { mutableStateOf<String?>(null) }
     var expanded by rememberSaveable { mutableStateOf(false) }
     var repackSourcePath by rememberSaveable { mutableStateOf<String?>(null) }
+    var extractionResultMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    var repackResultMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var showRepackSourceBrowser by rememberSaveable { mutableStateOf(false) }
     var repackBrowseDir by remember { mutableStateOf(afftService.getFilesystemContentsDir()) }
 
@@ -322,6 +324,8 @@ fun FilesystemScreen(
                     scope.launch {
                         val t0 = System.currentTimeMillis()
                         val result = afftService.extractFilesystem(file)
+                        extractionResultMessage =
+                            if (result.ok) "${result.message} — workspace: ${File(result.outputPath).name}" else result.message
                         workspace.recordOperation(
                             title = "Extract Filesystem",
                             ok = result.ok,
@@ -339,6 +343,8 @@ fun FilesystemScreen(
                     scope.launch {
                         val t0 = System.currentTimeMillis()
                         val result = afftService.extractFilesystem(uri)
+                        extractionResultMessage =
+                            if (result.ok) "${result.message} — workspace: ${File(result.outputPath).name}" else result.message
                         workspace.recordOperation(
                             title = "Extract Filesystem",
                             ok = result.ok,
@@ -362,13 +368,24 @@ fun FilesystemScreen(
             Text("Extract Filesystem")
         }
 
+        extractionResultMessage?.let { message ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(message, style = MaterialTheme.typography.bodySmall)
+        }
+
         Spacer(modifier = Modifier.height(20.dp))
 
         // ── Langkah 3: Repack ──
         StepSectionTitle(
             step = "03",
-            title = "Repack Filesystem",
-            description = "Pilih folder sumber dari mana saja, lalu repack",
+            title = "Repack Diagnostik",
+            description = "Hanya untuk diagnostik, bukan image siap flash",
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            "JANGAN FLASH: metadata SELinux/xattr belum diverifikasi; AVB/vbmeta tidak dipertahankan, ditandatangani, atau diverifikasi. Format hasil dapat berbeda dari image asal.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
         )
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -498,14 +515,15 @@ fun FilesystemScreen(
         Button(
             onClick = {
                 val dirName =
-                    selectedDir
-                        ?: repackSourcePath?.let { File(it).name }
+                    repackSourcePath?.let { File(it).name }
+                        ?: selectedDir
                         ?: return@Button
                 val source = repackSourcePath
                 scope.launch {
                     val t0 = System.currentTimeMillis()
                     val result =
                         afftService.repackFilesystem(dirName, customSourceDir = source)
+                    repackResultMessage = result.message
                     workspace.recordOperation(
                         title = "Repack Filesystem",
                         ok = result.ok,
@@ -522,7 +540,12 @@ fun FilesystemScreen(
         ) {
             Icon(painterResource(R.drawable.ic_arrow_forward), null, tint = LocalIconTint.current)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Repack ${selectedDir ?: "Filesystem"}")
+            Text("Repack Diagnostik ${repackSourcePath?.let { File(it).name } ?: selectedDir ?: "Filesystem"}")
+        }
+
+        repackResultMessage?.let { message ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(message, style = MaterialTheme.typography.bodySmall)
         }
 
         if (isRunning) {

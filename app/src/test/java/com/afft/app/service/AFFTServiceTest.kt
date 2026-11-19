@@ -22,6 +22,7 @@ import android.content.pm.ApplicationInfo
 import com.afft.app.model.OperationResult
 import java.io.File
 import java.io.FileOutputStream
+import java.util.zip.GZIPOutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
@@ -141,7 +142,7 @@ class AFFTServiceTest {
     }
 
     @Test
-    fun extractFilesystem_replacingPreviousOutputDoesNotFollowSymlinks() = runBlocking {
+    fun extractFilesystem_repeatedAndFailedRunsPreservePreviousWorkspace() = runBlocking {
         fakeDebugfs("")
         val service = newService()
         val input = ext4Image()
@@ -150,11 +151,68 @@ class AFFTServiceTest {
         val outside = tmp.newFolder("outside")
         val sentinel = File(outside, "keep.txt").apply { writeText("keep") }
         java.nio.file.Files.createSymbolicLink(File(first.outputPath, "outside-link").toPath(), outside.toPath())
+        File(first.outputPath, "file").writeText("edited")
+        val originalConfig = service.getFilesystemConfigFile("system").readText()
 
         val second = service.extractFilesystem(input)
+        fakeDebugfs("echo 'rdump: Permission denied' >&2")
+        val failed = service.extractFilesystem(input)
 
         assertTrue(second.ok)
+        assertFalse(failed.ok)
+        assertTrue(second.outputPath != first.outputPath)
+        assertEquals("edited", File(first.outputPath, "file").readText())
+        assertEquals(originalConfig, service.getFilesystemConfigFile("system").readText())
+        assertTrue(java.nio.file.Files.isSymbolicLink(File(first.outputPath, "outside-link").toPath()))
+        assertTrue(service.getFilesystemConfigFile(File(second.outputPath).name).isFile)
         assertEquals("keep", sentinel.readText())
+    }
+
+    @Test
+    fun extractFilesystem_gzipUsesUniqueWorkspaceWithoutEmptyPlaceholder() = runBlocking {
+        fakeDebugfs("")
+        val image = ext4Image()
+        val compressed = File(tmp.root, "system.img.gz")
+        GZIPOutputStream(compressed.outputStream()).use { it.write(image.readBytes()) }
+        val service = newService()
+
+        val first = service.extractFilesystem(compressed)
+        val second = service.extractFilesystem(compressed)
+
+        assertTrue(first.ok)
+        assertTrue(second.ok)
+        assertTrue(first.outputPath != second.outputPath)
+        assertEquals(2, service.getFilesystemContentsDir().listFiles()!!.size)
+        assertTrue(service.getFilesystemConfigFile(File(first.outputPath).name).isFile)
+        assertTrue(service.getFilesystemConfigFile(File(second.outputPath).name).isFile)
+    }
+
+    @Test
+    fun extractFilesystem_erofsMissingMetadataIsExplicitlyMarked() = runBlocking {
+        val binary = File(tmp.root, "libs/libextract.erofs.so")
+        binary.parentFile!!.mkdirs()
+        binary.writeText(
+            """
+            #!/bin/sh
+            printf 'data' > "${'$'}5/file"
+            """.trimIndent(),
+        )
+        check(binary.setExecutable(true))
+        val image = File(tmp.root, "vendor.img").apply {
+            writeBytes(ByteArray(0x404).also {
+                it[0x400] = 0xe2.toByte()
+                it[0x401] = 0xe1.toByte()
+                it[0x402] = 0xf5.toByte()
+                it[0x403] = 0xe0.toByte()
+            })
+        }
+        val service = newService()
+
+        val result = service.extractFilesystem(image)
+
+        assertTrue(result.ok)
+        assertTrue(result.message.contains("metadata filesystem tidak tersedia"))
+        assertEquals("unavailable", File(service.getFilesystemConfigFile("vendor").parentFile, "vendor.required").readText())
     }
 
     @Test
@@ -338,9 +396,20 @@ class AFFTServiceTest {
         check(extractResult.ok)
 
         val configFile = service.getFilesystemConfigFile("system")
+        File(extractResult.outputPath, "new-file").writeText("new")
+        val oldOutput = File(service.getTempDir(), "repacked/system_repack.img")
+        oldOutput.parentFile!!.mkdirs()
+        oldOutput.writeText("previous image")
         val result = service.repackFilesystem("system")
+        val second = service.repackFilesystem("system")
 
         assertTrue(result.ok)
+        assertTrue(second.ok)
+        assertTrue(result.outputPath != second.outputPath)
+        assertEquals("previous image", oldOutput.readText())
+        assertTrue(result.message.contains("JANGAN FLASH"))
+        assertTrue(result.message.contains("fs_config tidak sesuai"))
+        assertTrue(result.message.contains("file_contexts tidak tersedia"))
         assertTrue(configFile.isFile)
     }
 
@@ -355,7 +424,20 @@ class AFFTServiceTest {
         val result = service.repackFilesystem("system")
 
         assertFalse(result.ok)
-        assertTrue(result.message.contains("Metadata UID/GID/mode"))
+        assertTrue(result.message.contains("metadata UID/GID/mode"))
+    }
+
+    @Test
+    fun repackFilesystem_failedExtractionCannotBeRepackedViaCustomSubdirectory() = runBlocking {
+        fakeDebugfs("echo 'rdump: Permission denied' >&2")
+        val service = newService()
+        assertFalse(service.extractFilesystem(ext4Image()).ok)
+        val subdirectory = File(service.getFilesystemContentsDir(), "system/sub").apply { mkdirs() }
+
+        val result = service.repackFilesystem("sub", subdirectory.absolutePath)
+
+        assertFalse(result.ok)
+        assertTrue(result.message.contains("tidak lengkap"))
     }
 
     @Test
