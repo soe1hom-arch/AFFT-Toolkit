@@ -57,7 +57,8 @@ files outside the internal filesystem workspace cannot be edited this way.
 Exports to `Download/AFFT` are copies. AFFT checks available space and the
 destination's ability to preserve required timestamps, POSIX permissions and
 symbolic links. Unsupported metadata or incomplete filesystem metadata stops
-the export; the source remains in the workspace. EROFS extraction does not
+the export; timestamp precision differences can also prevent a safe copy.
+The source remains in the workspace. EROFS extraction does not
 currently capture equivalent `fs_config` metadata, so a filesystem workspace
 containing such an extraction cannot be exported through this mechanism.
 

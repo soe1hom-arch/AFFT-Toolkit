@@ -741,6 +741,11 @@ class AFFTServiceTest {
         val sourceFile = File(contents, "build.prop").apply { writeText("ro.build.version.release=15") }
         val sourceLink = File(contents, "build.prop.link").toPath()
         java.nio.file.Files.createSymbolicLink(sourceLink, java.nio.file.Paths.get("build.prop"))
+        java.nio.file.Files.getFileAttributeView(
+            sourceLink,
+            java.nio.file.attribute.BasicFileAttributeView::class.java,
+            java.nio.file.LinkOption.NOFOLLOW_LINKS,
+        ).setTimes(java.nio.file.attribute.FileTime.fromMillis(1_600_000_000_000L), null, null)
         val metadataDir = File(workspace, "fs_config").apply { mkdirs() }
         File(metadataDir, "system.txt").writeText("system/build.prop 0 0 0644")
         File(metadataDir, "system.required").writeText("complete")
@@ -803,7 +808,7 @@ class AFFTServiceTest {
         assertTrue(File(source, "file").exists())
         assertFalse(File(downloads, "filesystem").exists())
         assertTrue(messages.any { it.contains("fs_config ikut tersimpan") })
-        assertTrue(messages.any { it.contains("metadata") })
+        assertTrue(messages.any { it.contains("metadata", ignoreCase = true) })
     }
 
     @Test
