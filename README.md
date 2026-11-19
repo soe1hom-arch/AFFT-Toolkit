@@ -143,6 +143,15 @@ an exported copy is not validated for flashing. AFFT Manager can browse and
 manage the internal filesystem workspace directly. Move operations are limited
 to internal workspace folders; public storage is available through Export.
 
+AFFT Manager can also open and edit UTF-8 text files (up to 1 MiB) in that
+internal filesystem workspace, including `build.prop`, scripts and XML. Tap a
+file or select **Edit teks**. Saving checks for external changes and uses an
+atomic replacement, retaining UTF-8 BOM, line endings and verified POSIX
+permissions, owner and group. Symbolic links, hard-linked files, binary data and
+files outside this workspace cannot be edited. This is not an APK or binary
+editor; preservation of all firmware security labels and metadata is not
+guaranteed, and a repacked image should not be assumed safe to flash.
+
 </td>
 </tr>
 </table>

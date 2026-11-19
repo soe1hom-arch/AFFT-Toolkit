@@ -42,8 +42,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStoreOwner
 import com.afft.app.R
 import com.afft.app.service.AFFTService
+import com.afft.app.service.WorkspaceTextDocument
 import com.afft.app.ui.components.AppDialog
 import com.afft.app.ui.components.DialogOptionCard
 import com.afft.app.util.formatFileSize
@@ -57,6 +63,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+class WorkspaceEditorState : ViewModel() {
+    var document by mutableStateOf<WorkspaceTextDocument?>(null)
+    var text by mutableStateOf("")
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileManagerScreen(
@@ -66,6 +77,7 @@ fun FileManagerScreen(
 ) {
     val context = LocalContext.current
     val scope = remember { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
+    val editorState = remember(context) { ViewModelProvider(context as ViewModelStoreOwner)[WorkspaceEditorState::class.java] }
     var currentDir by remember { mutableStateOf<File?>(null) }
     var files by remember { mutableStateOf<List<File>>(emptyList()) }
     var pathHistory by remember { mutableStateOf<List<File>>(emptyList()) }
@@ -92,6 +104,7 @@ fun FileManagerScreen(
     var listError by remember { mutableStateOf<String?>(null) }
     var listLoading by remember { mutableStateOf(false) }
     var refreshVersion by remember { mutableIntStateOf(0) }
+    var editorOpenError by remember { mutableStateOf<String?>(null) }
 
     val inputDir = afftService.getInputDir()
     val downloadDir = afftService.getExportDir()
@@ -171,6 +184,18 @@ fun FileManagerScreen(
                 selectedFiles + file
             }
         selectMode = selectedFiles.isNotEmpty()
+    }
+
+    fun openTextFile(file: File) {
+        scope.launch {
+            operationInProgress = true
+            val result = afftService.openWorkspaceText(file)
+            operationInProgress = false
+            result.onSuccess {
+                editorState.text = it.text
+                editorState.document = it
+            }.onFailure { editorOpenError = "Tidak dapat membuka ${file.name}: ${it.message}" }
+        }
     }
 
     fun navigateTo(dir: File, keepCurrentInHistory: Boolean = true) {
@@ -460,6 +485,8 @@ fun FileManagerScreen(
                                     toggleSelectFile(file)
                                 } else if (file.isDirectory) {
                                     navigateTo(file)
+                                } else if (!operationInProgress && !isRunning) {
+                                    openTextFile(file)
                                 }
                             },
                             onLongClick = {
@@ -537,6 +564,16 @@ fun FileManagerScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (selectedFiles.size == 1) {
+                            if (!selectedFiles.first().isDirectory) {
+                                FilledTonalButton(
+                                    onClick = { openTextFile(selectedFiles.first()) },
+                                    enabled = !operationInProgress && !isRunning,
+                                ) {
+                                    Icon(painterResource(R.drawable.ic_edit), null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Edit teks")
+                                }
+                            }
                             FilledTonalButton(
                                 onClick = {
                                     renameTarget = selectedFiles.first()
@@ -592,6 +629,29 @@ fun FileManagerScreen(
                 }
             }
         }
+    }
+
+    editorState.document?.let { document ->
+        WorkspaceTextEditorDialog(
+            document = document,
+            editorState = editorState,
+            afftService = afftService,
+            isRunning = isRunning,
+            onDismiss = {
+                editorState.document = null
+                editorState.text = ""
+                scope.launch { currentDir?.let { refreshFiles(it) } }
+            },
+        )
+    }
+
+    editorOpenError?.let { message ->
+        AlertDialog(
+            onDismissRequest = { editorOpenError = null },
+            title = { Text("Tidak dapat membuka file") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { editorOpenError = null }) { Text("Tutup") } },
+        )
     }
 
     // Delete confirmation dialog
@@ -952,6 +1012,105 @@ fun FileManagerScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun WorkspaceTextEditorDialog(
+    document: WorkspaceTextDocument,
+    editorState: WorkspaceEditorState,
+    afftService: AFFTService,
+    isRunning: Boolean,
+    onDismiss: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val text = editorState.text
+    var error by remember(document) { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
+    var confirmDiscard by remember { mutableStateOf(false) }
+
+    fun requestClose() {
+        if (saving) return
+        if (text != document.text) confirmDiscard = true else onDismiss()
+    }
+
+    Dialog(
+        onDismissRequest = { requestClose() },
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                Text("Edit teks: ${document.file.name}", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    document.file.absolutePath,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { editorState.text = it },
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    enabled = !saving,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                )
+                if (error != null) {
+                    Text(error.orEmpty(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+                if (isRunning) {
+                    Text(
+                        "Tunggu operasi AFFT selesai sebelum menyimpan.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = { requestClose() }, enabled = !saving) { Text("Batal") }
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                saving = true
+                                error = null
+                                val result = afftService.saveWorkspaceText(document, text)
+                                saving = false
+                                result.onSuccess {
+                                    Toast.makeText(context, "File tersimpan: ${document.file.name}", Toast.LENGTH_SHORT).show()
+                                    onDismiss()
+                                }
+                                    .onFailure { error = "Gagal menyimpan: ${it.message}" }
+                            }
+                        },
+                        enabled = !saving && !isRunning && text != document.text,
+                    ) { Text("Simpan") }
+                }
+            }
+        }
+    }
+
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text("Buang perubahan?") },
+            text = { Text("Perubahan teks belum disimpan.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDiscard = false
+                    onDismiss()
+                }) { Text("Buang") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }) { Text("Lanjut mengedit") }
+            },
+        )
     }
 }
 

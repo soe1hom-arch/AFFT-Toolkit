@@ -72,6 +72,8 @@ class AFFTService(
             filesystemWorkspaceDir = ::getFilesystemWorkspaceDir,
         )
 
+    private val workspaceTextEditor = WorkspaceTextEditor(::getFilesystemWorkspaceDir)
+
     private val _isRunning = MutableStateFlow(false)
     val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
@@ -271,6 +273,12 @@ class AFFTService(
         src: File,
         destName: String? = null,
     ): Boolean = storageManager.exportToDownloads(src, destName)
+
+    suspend fun openWorkspaceText(file: File): Result<WorkspaceTextDocument> =
+        workspaceTextEditor.open(file)
+
+    suspend fun saveWorkspaceText(document: WorkspaceTextDocument, text: String): Result<Unit> =
+        workspaceTextEditor.save(document, text)
 
     suspend fun moveFileTo(
         src: File,
