@@ -15,6 +15,7 @@
  */
 
 package com.afft.app.ui.components.dashboard
+import com.afft.app.ui.i18n.tr
 import com.afft.app.ui.theme.LocalFontFamily
 import com.afft.app.ui.theme.LocalIconTint
 import com.afft.app.ui.components.TypedText
@@ -28,7 +29,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.afft.app.ui.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,7 +91,7 @@ fun MetadataItem(
             Spacer(modifier = Modifier.width(4.dp))
             Icon(
                 painter = painterResource(R.drawable.ic_chevron_right),
-                contentDescription = "Buka detail $title",
+                contentDescription = tr("Buka detail $title"),
                 tint = LocalIconTint.current,
                 modifier =
                     Modifier

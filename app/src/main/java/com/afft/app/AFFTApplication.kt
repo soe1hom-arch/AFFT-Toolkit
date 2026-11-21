@@ -21,6 +21,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import android.util.Log
+import com.afft.app.ui.i18n.tr
 import com.afft.app.ui.theme.FontController
 import com.afft.app.ui.theme.LanguageController
 import com.afft.app.ui.theme.ThemeController
@@ -29,6 +30,9 @@ class AFFTApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // Bahasa dimuat paling awal agar nama notification channel dan pesan
+        // awal sudah memakai bahasa aktif.
+        LanguageController.init(this)
         // Buat notification channel sejak awal agar service tidak delay saat startForeground
         createNotificationChannel()
         // Foreground service TIDAK di-start di sini lagi: service hanya berjalan
@@ -36,7 +40,6 @@ class AFFTApplication : Application() {
         // untuk menghemat baterai dan tidak menahan WakeLock seumur hidup aplikasi.
         // Muat preferensi tema (preset, mode, dynamic color) dari SharedPreferences.
         ThemeController.init(this)
-        LanguageController.init(this)
         FontController.init(this)
         Log.d("AFFT", "AFFT Application initialized")
     }
@@ -46,10 +49,10 @@ class AFFTApplication : Application() {
             val channel =
                 NotificationChannel(
                     "afft_extract",
-                    "AFFT Extraction",
+                    tr("AFFT Extraction"),
                     NotificationManager.IMPORTANCE_LOW,
                 ).apply {
-                    description = "Menjaga proses ekstraksi tetap berjalan"
+                    description = tr("Menjaga proses ekstraksi tetap berjalan")
                     setShowBadge(false)
                 }
             val manager = getSystemService(NotificationManager::class.java)

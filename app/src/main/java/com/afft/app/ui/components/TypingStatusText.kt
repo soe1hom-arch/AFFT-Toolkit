@@ -18,7 +18,7 @@ package com.afft.app.ui.components
 import com.afft.app.ui.theme.LocalFontFamily
 
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.afft.app.ui.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue

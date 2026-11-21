@@ -15,6 +15,8 @@
  */
 
 package com.afft.app.ui
+import com.afft.app.ui.i18n.Text
+import com.afft.app.ui.i18n.tr
 import com.afft.app.ui.theme.LocalFontFamily
 import com.afft.app.ui.theme.LocalIconTint
 
@@ -111,7 +113,7 @@ fun FileManagerScreen(
     // Show toast
     LaunchedEffect(toastMessage) {
         toastMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, tr(it), Toast.LENGTH_SHORT).show()
             toastMessage = null
         }
     }
@@ -1083,7 +1085,7 @@ private fun WorkspaceTextEditorDialog(
                                 val result = afftService.saveWorkspaceText(document, text)
                                 saving = false
                                 result.onSuccess {
-                                    Toast.makeText(context, "File tersimpan: ${document.file.name}", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, tr("File tersimpan: ${document.file.name}"), Toast.LENGTH_SHORT).show()
                                     onDismiss()
                                 }
                                     .onFailure { error = "Gagal menyimpan: ${it.message}" }

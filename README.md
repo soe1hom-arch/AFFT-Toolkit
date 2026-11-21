@@ -41,6 +41,34 @@ on your Android device.
 
 Availability depends on the image format, the bundled tools, and the device.
 
+## Languages / 语言
+
+Switch the interface in **Settings → Language**:
+
+| Language | Status |
+|:--|:--|
+| English | Default, complete |
+| Bahasa Indonesia | Existing, partial |
+| 简体中文 (Simplified Chinese) | New, complete UI coverage |
+
+On first launch the app follows the device locale, so a phone set to Chinese
+starts in Chinese.
+
+### 中文说明
+
+- 切换入口：主界面菜单 → 设置（Settings）→ 语言，选择「简体中文」后立即
+  生效，无需重启应用。
+- 首次安装在中文系统上会自动使用中文。
+- 覆盖范围：按钮、标题、对话框、设置项、文件管理器、固件信息面板、
+  实时状态与日志提示、Toast 文案，约 880 条词条。
+- 技术名词保留原文：`payload.bin`、`super.img`、`boot.img`、`vbmeta`、
+  `EROFS`、`EXT4`、`F2FS`、`SHA-256`、路径与许可证名称等。
+- 新增文案的做法：界面上照常写英文/印尼语字面量，再在
+  `app/src/main/java/com/afft/app/ui/i18n/ZhStrings.kt` 增加对应中文词条；
+  界面里的 `Text` 组件会按当前语言自动查表，无需改动各个界面文件。
+- 中文翻译表集中在同一个文件，便于校对与后续维护（后续也可逐步迁移到
+  Android 字符串资源）。
+
 ## Filesystem workspace
 
 Extracted filesystem contents and their `fs_config` metadata are kept in the

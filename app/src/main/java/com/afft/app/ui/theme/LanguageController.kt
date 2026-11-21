@@ -18,30 +18,46 @@ package com.afft.app.ui.theme
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import java.util.Locale
 
 /** Bahasa antarmuka aplikasi. */
 enum class AppLanguage(
     val id: String,
     val displayName: String,
+    val nativeName: String,
 ) {
-    ENGLISH("en", "English"),
-    INDONESIAN("id", "Bahasa Indonesia");
+    ENGLISH("en", "English", "English"),
+    INDONESIAN("id", "Bahasa Indonesia", "Bahasa Indonesia"),
+    CHINESE("zh", "Chinese (Simplified)", "简体中文");
 
     val isEnglish: Boolean
         get() = this == ENGLISH
 
+    val isChinese: Boolean
+        get() = this == CHINESE
+
     companion object {
         fun fromId(id: String?): AppLanguage? = entries.firstOrNull { it.id == id }
+
+        /** Bahasa awal bila pengguna belum pernah memilih. */
+        fun defaultFor(locale: Locale): AppLanguage =
+            when (locale.language) {
+                "zh" -> CHINESE
+                "id", "in" -> INDONESIAN
+                else -> ENGLISH
+            }
     }
 }
 
 /**
  * Pengatur bahasa aplikasi.
  *
- * Tersimpan di [SharedPreferences], default **English**. UI membaca
- * [StateFlow] sehingga perubahan langsung berlaku tanpa restart.
+ * Tersimpan di [SharedPreferences]; bila belum ada pilihan, bahasa mengikuti
+ * locale perangkat (Mandarin untuk perangkat berbahasa Tiongkok). UI membaca
+ * [language] atau [current] sehingga perubahan langsung berlaku tanpa restart.
  */
 object LanguageController {
     private const val PREFS_NAME = "afft_settings_prefs"
@@ -52,14 +68,27 @@ object LanguageController {
     private val _language = MutableStateFlow(AppLanguage.ENGLISH)
     val language: StateFlow<AppLanguage> = _language
 
+    /** State snapshot agar penerjemah teks ikut memicu recomposition. */
+    private val currentState = mutableStateOf(AppLanguage.ENGLISH)
+
+    /** Bahasa aktif; aman dibaca di dalam maupun di luar komposisi Compose. */
+    val current: AppLanguage
+        get() = currentState.value
+
     /** Panggil sekali saat aplikasi dimulai (AFFTApplication.onCreate). */
     fun init(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        _language.value =
-            AppLanguage.fromId(prefs.getString(KEY_LANGUAGE, null)) ?: AppLanguage.ENGLISH
+        val stored = AppLanguage.fromId(prefs.getString(KEY_LANGUAGE, null))
+        val resolved = stored ?: AppLanguage.defaultFor(Locale.getDefault())
+        if (stored == null) {
+            prefs.edit().putString(KEY_LANGUAGE, resolved.id).apply()
+        }
+        currentState.value = resolved
+        _language.value = resolved
     }
 
     fun setLanguage(value: AppLanguage) {
+        currentState.value = value
         _language.value = value
         prefs.edit().putString(KEY_LANGUAGE, value.id).apply()
     }

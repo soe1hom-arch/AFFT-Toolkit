@@ -15,6 +15,8 @@
  */
 
 package com.afft.app.ui
+import com.afft.app.ui.i18n.Text
+import com.afft.app.ui.i18n.tr
 import com.afft.app.ui.theme.LocalFontFamily
 import com.afft.app.ui.theme.LocalIconTint
 
@@ -228,7 +230,7 @@ fun BootScreen(
                 } else {
                     Toast.makeText(
                         context,
-                        "Folder tidak didukung — gunakan folder di penyimpanan internal atau Browser Folder",
+                        tr("Folder tidak didukung — gunakan folder di penyimpanan internal atau Browser Folder"),
                         Toast.LENGTH_LONG,
                     ).show()
                 }

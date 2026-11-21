@@ -15,6 +15,7 @@
  */
 
 package com.afft.app.ui.components.dashboard
+import com.afft.app.ui.i18n.tr
 import com.afft.app.ui.theme.LocalFontFamily
 import com.afft.app.ui.theme.LocalIconTint
 
@@ -46,7 +47,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
+import com.afft.app.ui.i18n.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -165,7 +166,7 @@ fun MetadataBottomSheet(
                     IconButton(onClick = onDismiss) {
                         Icon(
                             painter = painterResource(R.drawable.ic_close),
-                            contentDescription = "Tutup",
+                            contentDescription = tr("Tutup"),
                             tint = LocalIconTint.current,
                             modifier = Modifier.size(18.dp),
                         )

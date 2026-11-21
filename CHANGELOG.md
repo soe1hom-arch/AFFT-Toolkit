@@ -8,6 +8,9 @@
 > private workspace. Back up data before changing installations.
 
 ### Implemented
+- Interface localization: **Simplified Chinese** (简体中文) joins English and
+  Indonesian in Settings → Language. Chinese follows the system locale on
+  first launch and applies immediately without restarting the app.
 - AFFT Manager opens the internal filesystem workspace and edits supported
   UTF-8 text files (up to 1 MiB) with conflict checks and atomic replacement.
 - Repeated filesystem and payload extractions use separate output folders.
