@@ -15,6 +15,8 @@
  */
 
 package com.afft.app.ui
+import com.afft.app.ui.i18n.Text
+import com.afft.app.ui.i18n.tr
 import com.afft.app.ui.theme.LocalFontFamily
 
 import android.widget.Toast
@@ -620,7 +622,7 @@ fun MainScreen(
                             IconButton(onClick = { showAboutDialog = false }) {
                                 Icon(
                                     painterResource(R.drawable.ic_close),
-                                    contentDescription = "Tutup",
+                                    contentDescription = tr("Tutup"),
                                     tint = LocalIconTint.current,
                                 )
                             }
@@ -1508,17 +1510,17 @@ fun HomeScreen(
                             scope.launch {
                                 val selectedFolders = exportOptions.filter { it.value }.keys.toList()
                                 if (selectedFolders.isEmpty()) {
-                                    Toast.makeText(context, "Pilih minimal satu folder", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, tr("Pilih minimal satu folder"), Toast.LENGTH_SHORT).show()
                                     return@launch
                                 }
                                 Toast
                                     .makeText(
                                         context,
-                                        "Mengekspor ${selectedFolders.size} folder...",
+                                        tr("Exporting %d folder(s)...", selectedFolders.size),
                                         Toast.LENGTH_SHORT,
                                     ).show()
                                 val result = afftService.exportSelectedToDownloads(selectedFolders)
-                                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, tr(result.message), Toast.LENGTH_LONG).show()
                             }
                         },
                     ) {
@@ -1583,13 +1585,13 @@ fun HomeScreen(
                             scope.launch {
                                 val selectedFolders = cleanOptions.filter { it.value }.keys.toList()
                                 if (selectedFolders.isEmpty()) {
-                                    Toast.makeText(context, "Pilih minimal satu folder", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, tr("Pilih minimal satu folder"), Toast.LENGTH_SHORT).show()
                                     return@launch
                                 }
                                 Toast
                                     .makeText(
                                         context,
-                                        "Membersihkan ${selectedFolders.size} folder...",
+                                        tr("Cleaning %d folder(s)...", selectedFolders.size),
                                         Toast.LENGTH_SHORT,
                                     ).show()
                                 afftService.cleanSelected(selectedFolders)
@@ -1791,7 +1793,7 @@ private fun HistoryBottomSheet(
                 IconButton(onClick = onDismiss) {
                     Icon(
                         painter = painterResource(R.drawable.ic_close),
-                        contentDescription = "Tutup",
+                        contentDescription = tr("Tutup"),
                         tint = LocalIconTint.current,
                         modifier = Modifier.size(18.dp),
                     )

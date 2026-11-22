@@ -15,6 +15,7 @@
  */
 
 package com.afft.app.ui
+import com.afft.app.ui.i18n.Text
 import com.afft.app.ui.theme.LocalFontFamily
 import com.afft.app.ui.theme.LocalIconTint
 

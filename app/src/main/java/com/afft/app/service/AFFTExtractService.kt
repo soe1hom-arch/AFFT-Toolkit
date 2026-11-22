@@ -24,6 +24,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import com.afft.app.R
+import com.afft.app.ui.i18n.tr
 
 class AFFTExtractService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
@@ -70,7 +71,7 @@ class AFFTExtractService : Service() {
 
         return builder
             .setContentTitle("AFFT")
-            .setContentText("Sedang mengekstrak...")
+            .setContentText(tr("Sedang mengekstrak..."))
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setProgress(0, 0, true)

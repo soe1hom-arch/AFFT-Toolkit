@@ -15,6 +15,7 @@
  */
 
 package com.afft.app.ui.components
+import com.afft.app.ui.i18n.tr
 import com.afft.app.ui.theme.LocalFontFamily
 import com.afft.app.ui.theme.LocalIconTint
 
@@ -33,7 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.afft.app.ui.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -92,7 +93,7 @@ fun DialogHeader(
         IconButton(onClick = onDismiss) {
             Icon(
                 painterResource(R.drawable.ic_close),
-                contentDescription = "Tutup",
+                contentDescription = tr("Tutup"),
                 tint = LocalIconTint.current,
             )
         }

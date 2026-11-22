@@ -23,7 +23,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
+import com.afft.app.ui.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.afft.app.core.coordinator.WorkspaceCoordinator

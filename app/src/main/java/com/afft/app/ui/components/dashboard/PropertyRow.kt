@@ -15,6 +15,7 @@
  */
 
 package com.afft.app.ui.components.dashboard
+import com.afft.app.ui.i18n.tr
 import com.afft.app.ui.theme.LocalFontFamily
 import com.afft.app.ui.theme.LocalIconTint
 
@@ -36,7 +37,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.afft.app.ui.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -134,7 +135,7 @@ fun PropertyRow(
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_info),
-                        contentDescription = tooltip,
+                        contentDescription = tooltip?.let { tr(it) },
                         tint = LocalIconTint.current,
                         modifier = Modifier.size(14.dp),
                     )
@@ -148,7 +149,7 @@ fun PropertyRow(
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_content_copy),
-                        contentDescription = "Salin $name",
+                        contentDescription = tr("Salin $name"),
                         tint = LocalIconTint.current,
                         modifier = Modifier.size(14.dp),
                     )
@@ -159,7 +160,7 @@ fun PropertyRow(
                 Spacer(modifier = Modifier.width(2.dp))
                 Icon(
                     painter = painterResource(R.drawable.ic_chevron_right),
-                    contentDescription = "Buka detail $name",
+                    contentDescription = tr("Buka detail $name"),
                     tint = LocalIconTint.current,
                     modifier = Modifier.size(14.dp),
                 )

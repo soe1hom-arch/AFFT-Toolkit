@@ -40,12 +40,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
+import androidx.compose.material3.Text as MaterialText
+import com.afft.app.ui.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -128,19 +130,24 @@ private fun SettingsContent() {
             // ── Language ──
             SectionTitle(if (isEnglish) "Language" else "Bahasa")
             Spacer(modifier = Modifier.height(8.dp))
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                AppLanguage.entries.forEachIndexed { index, lang ->
-                    SegmentedButton(
+            AppLanguage.entries.forEach { lang ->
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { LanguageController.setLanguage(lang) }
+                            .padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(
                         selected = english == lang,
                         onClick = { LanguageController.setLanguage(lang) },
-                        shape =
-                            SegmentedButtonDefaults.itemShape(
-                                index = index,
-                                count = AppLanguage.entries.size,
-                            ),
-                    ) {
-                        Text(lang.displayName, fontSize = 12.sp)
-                    }
+                    )
+                    // Nama bahasa selalu ditampilkan dalam bahasa aslinya.
+                    MaterialText(
+                        text = lang.nativeName,
+                        fontSize = 13.sp,
+                    )
                 }
             }
 

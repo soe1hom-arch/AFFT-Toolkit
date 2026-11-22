@@ -15,6 +15,8 @@
  */
 
 package com.afft.app.ui.components
+import com.afft.app.ui.i18n.Text
+import com.afft.app.ui.i18n.tr
 import com.afft.app.ui.theme.LocalFontFamily
 import com.afft.app.ui.theme.LocalIconTint
 
@@ -391,7 +393,7 @@ fun FileSourceSelectorDialog(
                     IconButton(onClick = onDismiss) {
                         Icon(
                             painterResource(R.drawable.ic_close),
-                            contentDescription = "Tutup",
+                            contentDescription = tr("Tutup"),
                             tint = LocalIconTint.current,
                         )
                     }
@@ -710,7 +712,7 @@ fun FileManagerPickerDialog(
                     IconButton(onClick = onDismiss) {
                         Icon(
                             painterResource(R.drawable.ic_close),
-                            contentDescription = "Tutup",
+                            contentDescription = tr("Tutup"),
                             tint = LocalIconTint.current,
                         )
                     }

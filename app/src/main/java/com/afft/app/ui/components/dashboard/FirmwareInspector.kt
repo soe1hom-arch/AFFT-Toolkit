@@ -15,6 +15,7 @@
  */
 
 package com.afft.app.ui.components.dashboard
+import com.afft.app.ui.i18n.tr
 import com.afft.app.ui.theme.LocalFontFamily
 
 import android.content.ClipData
@@ -51,7 +52,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
+import com.afft.app.ui.i18n.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -505,7 +506,8 @@ private fun CollapsibleSection(
             )
             Icon(
                 painter = painterResource(R.drawable.ic_chevron_right),
-                contentDescription = if (expanded) "Tutup ${section.title}" else "Buka ${section.title}",
+                contentDescription =
+                    if (expanded) tr("Tutup ${section.title}") else tr("Buka ${section.title}"),
                 tint = LocalIconTint.current,
                 modifier = Modifier.size(18.dp).rotate(chevronRotation),
             )
@@ -579,7 +581,8 @@ private fun CollapsibleValidationSection(
             )
             Icon(
                 painter = painterResource(R.drawable.ic_chevron_right),
-                contentDescription = if (expanded) "Tutup Validation" else "Buka Validation",
+                contentDescription =
+                    if (expanded) tr("Tutup Validation") else tr("Buka Validation"),
                 tint = LocalIconTint.current,
                 modifier = Modifier.size(18.dp).rotate(chevronRotation),
             )
